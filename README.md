@@ -62,41 +62,7 @@
 
 پروژه در اولین اجرا مجموعه‌ای از Targetهای آماده را در اختیار شما قرار می‌دهد، از جمله:
 
-- Cloudflare
-- Google
-- Bing
-- Yahoo
-- Apple
-- App Store
-- iCloud
-- Google Play
-- GitHub
-- GitLab
-- Microsoft
-- Microsoft Live
-- Office
-- Azure
-- Amazon
-- Netflix
-- Spotify
-- Discord
-- Telegram
-- WhatsApp
-- Reddit
-- Wikipedia
-- Archive
-- Fastly
-- Akamai
-- Google APIs
-- Gstatic
-- Googleusercontent
-- Aparat
-- Digikala
-- Divar
-- Snapp
-- Irancell
-- MCI
-
+- 
 دامنه‌های سفارشی نیز از داخل پنل قابل اضافه‌کردن هستند.
 
 ---
