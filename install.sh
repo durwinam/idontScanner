@@ -177,8 +177,35 @@ ok "HTTP port selected: $PORT"
 
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-[[ -f "$SOURCE_DIR/requirements.txt" && -f "$SOURCE_DIR/app/main.py" ]] ||
-    die "Run install.sh from the project directory."
+# When launched remotely with `bash <(curl ...)`, the script is not inside
+# the project tree. In that case, download the matching repository archive
+# and continue with the exact same installation flow.
+if [[ ! -f "$SOURCE_DIR/requirements.txt" || ! -f "$SOURCE_DIR/app/main.py" ]]; then
+    command -v curl >/dev/null 2>&1 || die "curl is required for remote installation."
+    command -v unzip >/dev/null 2>&1 || {
+        log "Installing unzip for remote installation..."
+        apt-get update -y
+        apt-get install -y unzip
+    }
+
+    TEMP_DIR="$(mktemp -d)"
+    trap 'rm -rf "$TEMP_DIR"' EXIT
+
+    ARCHIVE_URL="https://github.com/durwinam/idontScanner/archive/refs/heads/main.zip"
+    ARCHIVE="$TEMP_DIR/idontScanner.zip"
+
+    log "Downloading idontScanner from GitHub..."
+    curl -fL --retry 3 --connect-timeout 10 "$ARCHIVE_URL" -o "$ARCHIVE" ||
+        die "Unable to download the idontScanner repository."
+
+    unzip -q "$ARCHIVE" -d "$TEMP_DIR/source"
+    SOURCE_DIR="$(find "$TEMP_DIR/source" -mindepth 1 -maxdepth 1 -type d -print -quit)"
+
+    [[ -n "$SOURCE_DIR" && -f "$SOURCE_DIR/requirements.txt" && -f "$SOURCE_DIR/app/main.py" ]] ||
+        die "Downloaded repository is incomplete."
+
+    ok "Project files downloaded."
+fi
 
 
 log "Creating dedicated service account..."
