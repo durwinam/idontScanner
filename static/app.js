@@ -43,7 +43,15 @@ scanBtn.onclick = async () => {
             body: JSON.stringify({ csrf }),
         });
 
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
+
+        if (response.status === 401) {
+            state.textContent = "Session expired. Redirecting to login…";
+            window.setTimeout(() => {
+                window.location.href = base + "/login/";
+            }, 300);
+            return;
+        }
 
         if (!response.ok) {
             throw new Error(data.error || "Scan failed");
