@@ -1,157 +1,44 @@
-# 🛡️ idontScanner
+# idontScanner v1.0.0
 
-### 🔍 اسکنر SNI / TLS برای بررسی اتصال و پیدا کردن Endpointهای سالم و سریع
+A lightweight, self-hosted SNI/TLS connectivity diagnostic panel designed for VPS environments.
 
-`idontScanner` یک ابزار سبک، مستقل و Self-Hosted برای VPS است که از روی همان سرور، اتصال TLS به لیستی کنترل‌شده از دامنه‌ها را بررسی می‌کند و نتیجه را با تمرکز روی **وضعیت اتصال، Latency و اطلاعات TLS** نمایش می‌دهد.
+## Overview
 
-پنل وب پروژه با رابط **Dark / Glass / Neon** طراحی شده و برای استفاده روی دسکتاپ و موبایل بهینه شده است.
+idontScanner runs on your own server and tests a controlled list of domain targets from that server. It reports DNS/TCP/TLS connectivity, TLS version, certificate subject, and measured handshake latency.
 
----
+The web interface is intentionally simple to deploy: there is no mandatory URL prefix. The panel is served directly from the root path.
 
-## ⚡ قابلیت‌های اصلی
+## Features
 
-| قابلیت | توضیح |
-|---|---|
-| 🔐 **احراز هویت پنل** | ورود امن با نام کاربری و رمز عبور مدیر |
-| 🛡️ **Scrypt Password Hashing** | ذخیره رمز عبور به‌صورت Hash با Scrypt |
-| 🔒 **CSRF Protection** | محافظت درخواست‌های حساس در برابر CSRF |
-| 🌐 **SNI / TLS Scanner** | بررسی اتصال TLS به دامنه‌های تعریف‌شده |
-| ⚡ **Latency Measurement** | اندازه‌گیری زمان برقراری TLS Handshake |
-| 🔐 **TLS Version** | نمایش نسخه TLS مورد استفاده در اتصال موفق |
-| 📜 **Certificate Subject** | دریافت Subject گواهی TLS مقصد |
-| 🚦 **Connection Status** | تشخیص وضعیت‌هایی مانند ONLINE، TIMEOUT، TLS ERROR و FAILED |
-| 🚀 **Concurrent Scanning** | اجرای هم‌زمان اسکن‌ها با کنترل Concurrency |
-| 🔎 **جستجوی دامنه‌ها** | فیلتر سریع Targetها از داخل پنل |
-| ➕ **Custom Domains** | افزودن دامنه اختصاصی به لیست اسکن |
-| 🗑️ **مدیریت Targetها** | حذف دامنه‌های سفارشی از پنل |
-| 📊 **Scan Statistics** | نمایش تعداد Targetها، سالم‌ها، بهترین Latency و زمان اسکن |
-| 🕘 **Scan History** | نگهداری و نمایش ۲۰ اسکن اخیر |
-| 💾 **SQLite Storage** | ذخیره اطلاعات بدون نیاز به دیتابیس خارجی |
-| 🖥️ **Web Panel** | داشبورد سبک و Responsive برای مدیریت Scanner |
-| 📱 **Mobile Friendly** | نمایش مناسب روی موبایل و دسکتاپ |
-| 🎨 **Dark Glass UI** | رابط مدرن با افکت Glass و Neon |
-| 🐧 **Systemd Service** | اجرای دائمی سرویس به‌صورت Systemd |
-| 🔧 **Auto Port Detection** | انتخاب خودکار پورت آزاد در صورت اشغال بودن پورت پیش‌فرض |
-| 🧱 **Hardened Service** | اجرای سرویس با کاربر اختصاصی و محدودیت‌های Systemd |
-| 🔥 **UFW Integration** | باز کردن خودکار پورت در صورت فعال بودن UFW |
-| 🧩 **Isolated Python Environment** | نصب وابستگی‌ها داخل Virtual Environment اختصاصی |
+- Dark, glass and neon interface
+- Responsive dashboard for desktop and mobile
+- Inline SVG neon icons
+- Root web panel with clean routes
+- First-run administrator password setup
+- Scrypt password hashing
+- Signed session cookies and CSRF protection
+- Controlled concurrent TLS probes
+- Latency and TLS diagnostics
+- Searchable target list
+- Custom domain management
+- Scan history
+- SQLite storage
+- Hardened systemd service
+- Automatic port availability check
+- UFW integration when UFW is active
+- No external database required
 
----
+## Default Targets
 
-## 🎯 نحوه عملکرد Scanner
+The initial target list includes services from Cloudflare, Google, Microsoft, Apple, Amazon, GitHub, GitLab, Yahoo, Bing, Wikipedia, Fastly, Akamai, Telegram, WhatsApp, Discord, Netflix, Spotify, Reddit, Google Play, App Store and selected Iranian services such as Aparat, Digikala, Divar, Snapp, Irancell and MCI.
 
-`idontScanner` یک لیست کنترل‌شده از دامنه‌ها را از VPS اجراکننده بررسی می‌کند.
+## Port
 
-برای هر Target:
+The default web port is **8088/tcp**. The installer checks the local machine before binding the service. If 8088 is already in use, it selects the next available TCP port automatically.
 
-1. اتصال به پورت `443` برقرار می‌شود.
-2. TLS Handshake انجام می‌شود.
-3. زمان برقراری اتصال اندازه‌گیری می‌شود.
-4. نسخه TLS استخراج می‌شود.
-5. Subject گواهی دریافت می‌شود.
-6. نتیجه با وضعیت مناسب در پنل نمایش داده می‌شود.
-7. نتایج اسکن در SQLite ذخیره می‌شوند.
+## Installation
 
-اسکن‌ها به‌صورت هم‌زمان و با **حداکثر ۸ اتصال فعال** اجرا می‌شوند تا فشار غیرضروری روی سرور ایجاد نشود.
-
-> محدودیت فعلی هر Batch برابر **۱۰۰ دامنه فعال** است.
-
----
-
-## 🌐 Targetهای پیش‌فرض
-
-پروژه در اولین اجرا مجموعه‌ای از Targetهای آماده را در اختیار شما قرار می‌دهد، از جمله:
-
-- 
-دامنه‌های سفارشی نیز از داخل پنل قابل اضافه‌کردن هستند.
-
----
-
-## 🖥️ Web Panel
-
-داشبورد شامل بخش‌های اصلی زیر است:
-
-### 📊 آمار اسکن
-
-- **Targets** — تعداد دامنه‌های فعال
-- **Healthy** — تعداد اتصال‌های TLS موفق
-- **Best Latency** — سریع‌ترین Target موفق
-- **Scan Time** — مدت زمان اجرای Batch
-
-### 📋 Target List
-
-برای هر دامنه موارد زیر نمایش داده می‌شود:
-
-- نام Target
-- Domain
-- وضعیت اتصال
-- Latency
-- TLS Version
-- گزینه حذف برای دامنه‌های سفارشی
-
-### 🔎 Search
-
-با استفاده از Search می‌توانید Target موردنظر را سریعاً از لیست پیدا کنید.
-
-### ➕ Add Domain
-
-امکان افزودن دامنه اختصاصی وجود دارد.
-
-فقط **Domain Name** پذیرفته می‌شود و موارد زیر مجاز نیستند:
-
-- URL
-- IP Address
-- مسیر `/`
-- `@`
-- دامنه نامعتبر
-
----
-
-## 🕘 Scan History
-
-نتایج Batchهای قبلی در SQLite ذخیره می‌شوند و پنل **۲۰ اسکن اخیر** را نمایش می‌دهد.
-
-برای هر اسکن:
-
-- شماره اسکن
-- زمان اجرا
-- تعداد Targetهای سالم
-- تعداد کل Targetها
-- مدت اجرای اسکن
-
-نمایش داده می‌شود.
-
----
-
-## 🔐 امنیت
-
-امنیت یکی از بخش‌های اصلی پروژه است:
-
-- Session Authentication
-- CSRF Protection
-- Scrypt Password Hashing
-- Secure Random Secret
-- Security Headers
-- `X-Content-Type-Options`
-- `X-Frame-Options`
-- `Referrer-Policy`
-- `Permissions-Policy`
-- اجرای سرویس با User اختصاصی
-- `NoNewPrivileges`
-- `PrivateTmp`
-- `ProtectSystem=strict`
-- `ProtectHome`
-- محدودسازی مسیرهای قابل نوشتن
-- محدودیت Concurrency در Scanner
-- اعتبارسنجی Domain قبل از Scan
-
-> برای استفاده عمومی، بهتر است پنل HTTP پشت یک Reverse Proxy با HTTPS قرار بگیرد و دسترسی مستقیم به پورت برنامه محدود شود.
-
----
-
-## 📦 نصب
-
-پس از Extract کردن پروژه روی VPS:
+Extract the release on the VPS and run:
 
 ```bash
 cd idontScanner
@@ -159,166 +46,47 @@ chmod +x install.sh
 sudo ./install.sh
 ```
 
-Installer به‌صورت خودکار:
+The installer validates prerequisites, creates an isolated Python environment, installs dependencies, generates the application secret, creates a dedicated system user, installs the systemd service, starts it, optionally opens the selected port in UFW, and prints the final URL.
 
-- سیستم‌عامل را بررسی می‌کند.
-- Python و وابستگی‌های لازم را نصب می‌کند.
-- Virtual Environment می‌سازد.
-- User اختصاصی `idontscanner` ایجاد می‌کند.
-- Secret امن تولید می‌کند.
-- رمز مدیر را به‌صورت Scrypt ذخیره می‌کند.
-- SQLite Database را آماده می‌کند.
-- سرویس Systemd را نصب می‌کند.
-- سرویس را اجرا می‌کند.
-- وضعیت سرویس و HTTP را بررسی می‌کند.
-- در صورت فعال بودن UFW، Rule مربوط به پورت را اضافه می‌کند.
+### First login
 
----
+Open the URL printed by the installer. On first launch, choose an administrator password with at least 12 characters.
 
-## 🔌 پورت
-
-پورت پیش‌فرض:
-
-```text
-8088/tcp
-```
-
-اگر این پورت در حال استفاده باشد، Installer به‌صورت خودکار پورت بعدی آزاد را انتخاب می‌کند.
-
-امکان تعیین پورت دلخواه نیز وجود دارد:
-
-```bash
-sudo ./install.sh --port 18080
-```
-
-برای جلوگیری از تغییر Rule فایروال:
-
-```bash
-sudo ./install.sh --no-ufw
-```
-
-برای نصب مجدد و حذف کامل داده‌های قبلی:
-
-```bash
-sudo ./install.sh --fresh
-```
-
-> گزینه `--fresh` داده‌های محلی، Database و تنظیمات نصب قبلی را حذف می‌کند.
-
----
-
-## ⚙️ مدیریت سرویس
-
-مشاهده وضعیت:
-
-```bash
-systemctl status idontscanner
-```
-
-Restart:
-
-```bash
-systemctl restart idontscanner
-```
-
-Stop:
-
-```bash
-systemctl stop idontscanner
-```
-
-مشاهده Log زنده:
-
-```bash
-journalctl -u idontscanner -f
-```
-
----
-
-## 🗂️ ساختار پروژه
-
-```text
-idontScanner/
-├── app/
-│   └── main.py
-├── static/
-│   ├── app.css
-│   └── app.js
-├── templates/
-│   ├── login.html
-│   └── dashboard.html
-├── systemd/
-│   └── idontscanner.service
-├── .env.example
-├── install.sh
-├── requirements.txt
-├── VERSION
-├── LICENSE
-└── README.md
-```
-
----
-
-## 🧰 تکنولوژی‌ها
-
-- Python 3
-- FastAPI
-- Uvicorn
-- Jinja2
-- SQLite
-- HTML / CSS / JavaScript
-- Systemd
-- OpenSSL / Python SSL
-
-هیچ دیتابیس خارجی یا Framework سنگین دیگری برای اجرای پروژه الزامی نیست.
-
----
-
-## 📍 مسیرهای اصلی
+## Routes
 
 ```text
 /
 /login/
 /logout/
 /dashboard/
-
 /api/scan
 /api/history
 /api/domains
 /api/domains/{domain_id}
-
 /static/
 ```
 
----
+## Service Management
 
-## 📌 مشخصات نسخه
-
-```text
-VERSION   v1.0.0
-PYTHON    3.x
-DATABASE  SQLite
-PANEL     Web Panel
-PROTOCOL  HTTP
-LICENSE   MIT
+```bash
+systemctl status idontscanner
+systemctl restart idontscanner
+systemctl stop idontscanner
+journalctl -u idontscanner -f
 ```
 
----
+## Security
 
-## 👤 توسعه‌دهنده
+The scanner only accepts domain names and does not execute shell commands. Requests are protected with authentication, CSRF validation and controlled concurrency. For public deployments, use HTTPS through a reverse proxy and restrict direct access to the application port where practical.
 
-**Durwinam / idontScanner**
+## Upgrade Notes
 
-Repository:
+Before upgrading, back up the SQLite database and `.env`. Preserve the application secret and restart the systemd service after replacing the application files.
 
-```text
-durwinam/idontScanner
-```
+## Repository
 
----
+`durwinam/idontScanner`
 
-## 📄 License
+## License
 
-این پروژه تحت **MIT License** منتشر شده است.
-
-Copyright © 2026 Durwinam / idontScanner contributors.
+MIT License. Copyright © 2026 Durwinam / idontScanner contributors.
