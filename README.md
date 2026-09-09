@@ -1,242 +1,101 @@
-# 🛰️ idontScanner
+# idontScanner v2.0.0
 
-<div align="center">
+A lightweight, self-hosted SNI / TLS connectivity diagnostic panel for controlled targets.
 
-### پنل سبک و حرفه‌ای برای بررسی وضعیت اتصال و TLS
+> **Scope:** idontScanner performs normal DNS, TCP and TLS diagnostics from the VPS. It is designed for domains and endpoints you are authorized to test. It does not configure Xray, generate bypass configurations, or perform Internet-wide IP-range scanning.
 
-**ساده برای نصب • سریع برای اجرا • مناسب VPS • رابط کاربری مدرن**
+## Highlights
 
-</div>
+- Dark glass / neon responsive dashboard with SVG icons
+- Mobile sidebar navigation
+- Username + password authentication
+- Scrypt password hashing with low-memory fallback
+- Recent login devices: last 3 IP / browser / platform sessions
+- Password and username management
+- Domain library with categories and enable/disable controls
+- Real TLS details: IP, DNS timing, TCP timing, TLS version, ALPN, cipher and certificate metadata when available
+- Per-target `⋮` details modal
+- Scan history and detailed historical results
+- SNI behavior check for controlled target/SNI comparisons
+- CDN / Akamai endpoint diagnostics for a specific domain
+- Optional Telegram Bot integration using polling (no HTTPS webhook required)
+- Optional Scheduler: 30 minutes to 24 hours, 30-minute steps
+- Telegram scheduled reports and failure/attention mode
+- HTTP-only operation on a VPS IP; SSL is not required
+- Professional `install.sh` with `--fresh`, automatic venv setup, port selection and health checks
 
----
-
-## ✨ idontScanner چیه؟
-
-`idontScanner` یک پنل سبک و Self-Hosted برای بررسی وضعیت دسترسی دامنه‌ها و اطلاعات اتصال TLS از روی سرور شماست.
-
-پنل نتیجه بررسی‌ها را به شکل مرتب داخل داشبورد نمایش می‌دهد تا بتوانید وضعیت اتصال، زمان پاسخ و اطلاعات TLS را راحت‌تر بررسی کنید.
-
-> 🎯 هدف پروژه: **نصب راحت، استفاده ساده و نمایش واضح نتیجه‌ها** — بدون نیاز به دیتابیس خارجی یا تنظیمات پیچیده.
-
----
-
-## 🚀 نصب سریع
-
-اگر می‌خواهید مستقیم روی VPS نصب کنید، فقط این دستور را اجرا کنید:
-
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.sh)
-```
-
-اسکریپت نصب به‌صورت خودکار:
-
-- پیش‌نیازهای سیستم را نصب می‌کند
-- فایل‌های پروژه را دریافت می‌کند
-- محیط مجازی Python می‌سازد
-- وابستگی‌ها را نصب می‌کند
-- کاربر اختصاصی سرویس می‌سازد
-- دیتابیس را آماده می‌کند
-- اطلاعات ورود مدیر را می‌گیرد
-- سرویس `systemd` را نصب و فعال می‌کند
-- پورت آزاد را پیدا می‌کند
-- در صورت فعال بودن UFW، قانون فایروال را اضافه می‌کند
-- سرویس را اجرا می‌کند
-- در پایان آدرس پنل را نمایش می‌دهد
-
-### نصب از فایل ZIP
-
-اگر پروژه را به‌صورت ZIP روی سرور دارید:
+## Install
 
 ```bash
-unzip idontScanner-v1.0.0-clean-code.zip
-cd idontScanner-1.0.2
-chmod +x install.sh
-sudo ./install.sh
+unzip idontScanner-v2.0.0.zip
+cd idontScanner-2.0.0
+sudo bash install.sh --fresh
 ```
 
----
+The installer asks for the admin username and password and starts the panel on HTTP. The preferred port is `8088`; if it is busy, the installer selects the next available TCP port.
 
-## 🔐 ورود به پنل
-
-در زمان نصب از شما اطلاعات مدیر پرسیده می‌شود:
+After installation:
 
 ```text
-Admin username [admin]:
-Admin password (minimum 12 characters):
-Confirm password:
+http://SERVER_IP:8088/
 ```
 
-بعد از نصب، آدرس پنل در خروجی ترمینال نمایش داده می‌شود.
+The exact URL and selected port are printed at the end of installation.
 
-🔒 رمز عبور به‌صورت مستقیم ذخیره نمی‌شود و از هش امن استفاده می‌شود.
-
----
-
-## 🌟 امکانات
-
-| قابلیت | وضعیت |
-|---|:---:|
-| 🎨 رابط Dark / Glass / Neon | ✅ |
-| 📱 طراحی Responsive | ✅ |
-| 🔐 ورود امن مدیر | ✅ |
-| 🔑 Scrypt Password Hashing | ✅ |
-| 🛡️ Session و CSRF Protection | ✅ |
-| ⚡ بررسی همزمان اتصال‌ها | ✅ |
-| 📊 نمایش Latency | ✅ |
-| 🔒 اطلاعات TLS و Certificate | ✅ |
-| 🔎 جستجو در لیست | ✅ |
-| 🌐 مدیریت دامنه‌ها | ✅ |
-| 📚 تاریخچه اسکن‌ها | ✅ |
-| 💾 SQLite | ✅ |
-| ⚙️ Systemd Service | ✅ |
-| 🔥 UFW Integration | ✅ |
-| 🗄️ بدون دیتابیس خارجی | ✅ |
-
----
-
-## 🖥️ ساختار کلی
-
-```text
-idontScanner
-│
-├── app/
-│   └── main.py          # هسته برنامه و API
-│
-├── static/
-│   ├── app.css          # ظاهر پنل
-│   └── app.js           # منطق رابط کاربری
-│
-├── templates/
-│   ├── login.html       # صفحه ورود
-│   └── dashboard.html   # داشبورد
-│
-├── systemd/
-│   └── idontscanner.service
-│
-├── install.sh           # نصب‌کننده سریع
-├── requirements.txt
-├── .env.example
-├── VERSION
-└── README.md
-```
-
----
-
-## ⚙️ مدیریت سرویس
-
-بررسی وضعیت:
+## Management
 
 ```bash
-systemctl status idontscanner
+sudo systemctl status idontscanner
+sudo systemctl restart idontscanner
+sudo journalctl -u idontscanner -f
 ```
 
-ری‌استارت:
+Fresh reinstall:
 
 ```bash
-systemctl restart idontscanner
+sudo bash install.sh --fresh
 ```
 
-توقف:
+Disable automatic UFW changes:
 
 ```bash
-systemctl stop idontscanner
+sudo bash install.sh --fresh --no-ufw
 ```
 
-مشاهده لاگ زنده:
+## Telegram
 
-```bash
-journalctl -u idontscanner -f
-```
+Telegram is optional. Add a BotFather token under **Settings → Telegram bot**, save it, then open the bot and send `/start` from the intended private chat. Polling is used so the panel can remain HTTP-only.
 
----
+The bot supports a compact inline menu, manual scan, status and scheduler information. Scheduled notifications can be configured as every-result or attention-only.
 
-## 🔧 گزینه‌های نصب
+## Scheduler
 
-نصب معمولی:
+The scheduler is **off by default**. When enabled, it stores its state in SQLite and resumes after a service restart.
 
-```bash
-sudo ./install.sh
-```
+Supported intervals:
 
-تعیین پورت دلخواه:
+- 30 minutes
+- 1 hour
+- 1.5 hours
+- 2 hours
+- 3 hours
+- 6 hours
+- 12 hours
+- 24 hours
 
-```bash
-sudo ./install.sh --port 9090
-```
+## Security notes
 
-عدم تغییر فایروال UFW:
+- Passwords are never stored in plaintext.
+- Password hashing uses salted scrypt with a memory-aware fallback.
+- Login and mutating API routes use a session-bound CSRF token.
+- Systemd runs the application under a dedicated unprivileged user.
+- Scanner inputs are validated as hostnames; arbitrary shell commands are never built from target input.
+- The app intentionally disables HTTPS redirects because this release is designed for direct HTTP access on a VPS IP.
 
-```bash
-sudo ./install.sh --no-ufw
-```
+## Version
 
-نصب تمیز و حذف اطلاعات قبلی پروژه:
+`v2.0.0`
 
-```bash
-sudo ./install.sh --fresh
-```
+## License
 
-> ⚠️ گزینه `--fresh` اطلاعات محلی نصب قبلی را حذف می‌کند. فقط زمانی استفاده کنید که واقعاً نصب تمیز می‌خواهید.
-
----
-
-## 🌐 پورت پیش‌فرض
-
-پورت پیش‌فرض پنل:
-
-```text
-8088/tcp
-```
-
-اگر این پورت قبلاً استفاده شده باشد، Installer به‌صورت خودکار پورت آزاد بعدی را انتخاب می‌کند.
-
----
-
-## 🛡️ نکات امنیتی
-
-- پنل با یک کاربر اختصاصی سیستم اجرا می‌شود.
-- سرویس با `systemd` و محدودیت‌های امنیتی اجرا می‌شود.
-- رمز عبور با Scrypt هش می‌شود.
-- Session و CSRF محافظت شده‌اند.
-- اسکن‌ها به‌صورت کنترل‌شده و همزمان اجرا می‌شوند.
-- برنامه برای بررسی دامنه طراحی شده و اجرای مستقیم Shell Command از ورودی کاربر ندارد.
-
-برای استفاده عمومی، بهتر است پنل را پشت HTTPS و یک Reverse Proxy قرار دهید و دسترسی مستقیم به پورت برنامه را در صورت نیاز محدود کنید.
-
----
-
-## 📦 وابستگی‌ها
-
-پروژه به یک دیتابیس خارجی نیاز ندارد و از SQLite استفاده می‌کند.
-
-پیش‌نیازهای اصلی توسط Installer نصب می‌شوند؛ بنابراین برای نصب معمولی نیاز نیست تک‌تک آن‌ها را دستی نصب کنید.
-
----
-
-## 🔄 بروزرسانی
-
-قبل از بروزرسانی، در صورت داشتن اطلاعات مهم، از دیتابیس SQLite و فایل `.env` نسخه پشتیبان تهیه کنید.
-
-مقدار Secret برنامه را در زمان بروزرسانی حفظ کنید تا Sessionهای موجود بی‌دلیل نامعتبر نشوند.
-
----
-
-## 📌 نکته درباره لیست‌های اسکن
-
-لیست اولیه داخل خود برنامه مدیریت می‌شود و از طریق داشبورد نیز امکان مدیریت دامنه‌ها وجود دارد.
-
-برای ساده و عمومی نگه داشتن مستندات، جزئیات مربوط به مقصدها و مقادیر داخلی اسکن در این README درج نشده است.
-
----
-
-## 👨‍💻 توسعه‌دهنده
-
-**Durwinam / idontScanner Contributors**
-
----
-
-## 📄 License
-
-این پروژه تحت **MIT License** منتشر شده است.
-
-Copyright © 2026 Durwinam / idontScanner Contributors
+MIT — Copyright (c) 2026 Darwin.
