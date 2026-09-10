@@ -1,0 +1,333 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+APP_NAME="idontScanner"
+SERVICE_NAME="idontscanner"
+APP_DIR="/opt/idontScanner"
+UPDATE_SCRIPT="$APP_DIR/update.sh"
+
+CYAN=$'\033[36m'
+GREEN=$'\033[32m'
+YELLOW=$'\033[33m'
+RED=$'\033[31m'
+RESET=$'\033[0m'
+
+log() { printf '%s[%s]%s %s\n' "$CYAN" "$APP_NAME" "$RESET" "$*"; }
+ok() { printf '%s[OK]%s %s\n' "$GREEN" "$RESET" "$*"; }
+warn() { printf '%s[WARN]%s %s\n' "$YELLOW" "$RESET" "$*"; }
+die() { printf '%s[ERROR]%s %s\n' "$RED" "$RESET" "$*" >&2; exit 1; }
+
+require_root() {
+    [[ $EUID -eq 0 ]] || die "Run as root: sudo idontScanner"
+    [[ -d "$APP_DIR" ]] || die "idontScanner is not installed in $APP_DIR"
+}
+
+installed_version() {
+    if [[ -f "$APP_DIR/VERSION" ]]; then
+        tr -d '[:space:]' < "$APP_DIR/VERSION"
+    else
+        printf 'unknown\n'
+    fi
+}
+
+service_port() {
+    systemctl cat "$SERVICE_NAME" 2>/dev/null \
+        | sed -n 's/.*--port \([0-9][0-9]*\).*/\1/p' \
+        | tail -n1
+}
+
+panel_address() {
+    local port ip
+    port="$(service_port)"
+    port="${port:-8088}"
+    ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    ip="${ip:-127.0.0.1}"
+    printf 'http://%s:%s/\n' "$ip" "$port"
+}
+
+health_check() {
+    local port="${1:-}"
+    [[ -n "$port" ]] || return 1
+
+    for _ in $(seq 1 30); do
+        if curl -fsS --connect-timeout 1 --max-time 3 \
+            "http://127.0.0.1:${port}/login/" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 1
+    done
+
+    return 1
+}
+
+restart_service() {
+    systemctl restart "$SERVICE_NAME"
+
+    local port
+    port="$(service_port)"
+    if health_check "$port"; then
+        ok "Panel is healthy on TCP/$port."
+    else
+        journalctl -u "$SERVICE_NAME" -n 60 --no-pager
+        return 1
+    fi
+}
+
+reset_password() {
+    local password confirm
+
+    read -rsp "New admin password (minimum 8 characters): " password
+    printf '\n'
+    if (( ${#password} < 8 )); then
+        warn "Password is too short."
+        return 1
+    fi
+
+    read -rsp "Confirm password: " confirm
+    printf '\n'
+    if [[ "$password" != "$confirm" ]]; then
+        warn "Passwords do not match."
+        return 1
+    fi
+
+    ADMIN_PASS="$password" PYTHONPATH="$APP_DIR" \
+        runuser -u idontscanner -- "$APP_DIR/.venv/bin/python" - <<'PY'
+import os
+
+from app.auth import hash_password
+from app.database import set_setting
+
+set_setting("password", hash_password(os.environ["ADMIN_PASS"]))
+PY
+
+    unset password confirm ADMIN_PASS
+    ok "Admin password changed."
+}
+
+change_port() {
+    local old new
+    old="$(service_port)"
+    old="${old:-8088}"
+
+    read -rp "New HTTP port [$old]: " new
+    new="${new:-$old}"
+
+    if [[ ! "$new" =~ ^[0-9]{2,5}$ ]] || (( new < 1024 || new > 65535 )); then
+        warn "Invalid port."
+        return 1
+    fi
+
+    if [[ "$new" != "$old" ]] && ss -lntH 2>/dev/null \
+        | awk '{print $4}' \
+        | grep -Eq "(:|\])${new}$"; then
+        warn "TCP/$new is already in use."
+        return 1
+    fi
+
+    sed -i -E "s/(--port )[0-9]+/\\1${new}/" \
+        "/etc/systemd/system/${SERVICE_NAME}.service"
+
+    systemctl daemon-reload
+
+    if command -v ufw >/dev/null 2>&1 \
+        && ufw status 2>/dev/null | grep -q '^Status: active'; then
+        ufw allow "${new}/tcp" >/dev/null
+        ufw delete allow "${old}/tcp" >/dev/null 2>&1 || true
+    fi
+
+    restart_service
+    ok "HTTP port changed from $old to $new."
+    printf 'Panel: %s\n' "$(panel_address)"
+}
+
+telegram_cli() {
+    local action token owner admins
+
+    while true; do
+        printf '\n%sTelegram configuration%s\n' "$CYAN" "$RESET"
+        printf '  1) Configure bot token and access IDs\n'
+        printf '  2) Show current configuration\n'
+        printf '  3) Disable Telegram integration\n'
+        printf '  0) Back\n\n'
+        read -rp "Select: " action
+
+        case "$action" in
+            1)
+                read -rsp "Bot token: " token
+                printf '\n'
+                [[ -n "$token" ]] || { warn "Token cannot be empty."; continue; }
+                read -rp "Owner Telegram ID: " owner
+                read -rp "Admin Telegram IDs (comma-separated): " admins
+
+                TOKEN="$token" OWNER="$owner" ADMINS="$admins" \
+                    PYTHONPATH="$APP_DIR" \
+                    runuser -u idontscanner -- "$APP_DIR/.venv/bin/python" - <<'PY'
+import os
+
+from app.database import set_setting
+from app.telegram import telegram_request
+
+token = os.environ["TOKEN"].strip()
+owner = os.environ["OWNER"].strip()
+admins = [
+    item.strip()
+    for item in os.environ["ADMINS"].replace("\n", ",").split(",")
+    if item.strip()
+]
+
+if owner and not owner.lstrip("-").isdigit():
+    raise SystemExit("Owner ID must be numeric")
+
+if any(not item.lstrip("-").isdigit() for item in admins):
+    raise SystemExit("Admin IDs must be numeric")
+
+admins = [item for item in admins if item != owner]
+result = telegram_request(token, "getMe", {})
+if not result.get("ok"):
+    raise SystemExit("Telegram rejected the bot token")
+
+commands = {
+    "commands": [
+        {"command": "start", "description": "Open idontScanner menu"},
+        {"command": "menu", "description": "Show control menu"},
+        {"command": "scan", "description": "Run a scan"},
+        {"command": "status", "description": "Show scanner status"},
+    ]
+}
+telegram_request(token, "setMyCommands", commands)
+set_setting("telegram_token", token)
+set_setting("telegram_owner_id", owner)
+set_setting("telegram_admin_ids", ",".join(admins))
+set_setting("telegram_chat_id", owner)
+print(f"Connected: @{result.get('result', {}).get('username', '')}")
+PY
+
+                unset token owner admins TOKEN OWNER ADMINS
+                ok "Telegram settings saved."
+                ;;
+            2)
+                PYTHONPATH="$APP_DIR" runuser -u idontscanner -- \
+                    "$APP_DIR/.venv/bin/python" - <<'PY'
+from app.database import get_setting, telegram_admin_ids
+
+print("Token: " + ("configured" if get_setting("telegram_token") else "not configured"))
+print("Owner ID: " + (get_setting("telegram_owner_id") or "not set"))
+print("Admin IDs: " + (", ".join(sorted(telegram_admin_ids())) or "none"))
+PY
+                ;;
+            3)
+                PYTHONPATH="$APP_DIR" runuser -u idontscanner -- \
+                    "$APP_DIR/.venv/bin/python" - <<'PY'
+from app.database import set_setting
+
+for key in (
+    "telegram_token",
+    "telegram_chat_id",
+    "telegram_owner_id",
+    "telegram_admin_ids",
+):
+    set_setting(key, "")
+PY
+                ok "Telegram integration disabled."
+                ;;
+            0)
+                return
+                ;;
+            *)
+                warn "Invalid selection."
+                ;;
+        esac
+    done
+}
+
+update() {
+    [[ -x "$UPDATE_SCRIPT" ]] || die "Update script is missing: $UPDATE_SCRIPT"
+    bash "$UPDATE_SCRIPT"
+}
+
+show_system_info() {
+    local os_name python_version
+    os_name="unknown"
+    [[ -f /etc/os-release ]] && os_name="$(. /etc/os-release; printf '%s' "$PRETTY_NAME")"
+    python_version="$($APP_DIR/.venv/bin/python --version 2>&1)"
+
+    printf '\nOS: %s\n' "$os_name"
+    printf 'Python: %s\n' "$python_version"
+    printf 'Version: %s\n' "$(installed_version)"
+    printf 'Port: %s\n' "$(service_port)"
+    printf 'Service user: idontscanner\n'
+}
+
+pause() {
+    read -rp "Press Enter to continue..." _
+}
+
+show_help() {
+    cat <<EOF
+$APP_NAME $(installed_version)
+
+Usage:
+  idontScanner                  Open the interactive management menu.
+  idontScanner update           Update from GitHub without removing local data.
+  idontScanner status           Show systemd service status.
+  idontScanner restart          Restart and health-check the panel.
+  idontScanner logs             Show recent service logs.
+  idontScanner version          Show the installed version.
+  idontScanner help             Show this help.
+
+Direct update:
+  sudo bash /opt/idontScanner/update.sh
+EOF
+}
+
+menu() {
+    while true; do
+        clear 2>/dev/null || true
+
+        printf '%s╔══════════════════════════════════════════════╗%s\n' "$CYAN" "$RESET"
+        printf '%s║           idontScanner Management            ║%s\n' "$CYAN" "$RESET"
+        printf '%s╚══════════════════════════════════════════════╝%s\n' "$CYAN" "$RESET"
+        printf ' Version : %s\n' "$(installed_version)"
+        printf ' Panel   : %s\n\n' "$(panel_address)"
+
+        printf '  1) 🔐 Reset admin password\n'
+        printf '  2) 🌐 Show web panel address\n'
+        printf '  3) 🔌 Change web panel port\n'
+        printf '  4) 🔄 Update project\n'
+        printf '  5) 🤖 Telegram bot / Owner / Admins\n'
+        printf '  6) 📊 Service status\n'
+        printf '  7) 📜 View logs\n'
+        printf '  8) ♻️  Restart service\n'
+        printf '  9) 🧹 System information\n'
+        printf '  0) Exit\n\n'
+
+        read -rp "Select an option: " choice
+
+        case "$choice" in
+            1) reset_password; pause ;;
+            2) printf '\nPanel: %s\n' "$(panel_address)"; pause ;;
+            3) change_port; pause ;;
+            4) update; pause ;;
+            5) telegram_cli; ;;
+            6) systemctl status "$SERVICE_NAME" --no-pager -l; pause ;;
+            7) journalctl -u "$SERVICE_NAME" -n 100 --no-pager; pause ;;
+            8) restart_service; pause ;;
+            9) show_system_info; pause ;;
+            0) exit 0 ;;
+            *) warn "Invalid selection."; sleep 1 ;;
+        esac
+    done
+}
+
+require_root
+
+case "${1:-menu}" in
+    update) update ;;
+    status) systemctl status "$SERVICE_NAME" --no-pager -l ;;
+    restart) restart_service ;;
+    logs) journalctl -u "$SERVICE_NAME" -n 100 --no-pager ;;
+    version) installed_version ;;
+    help|-h|--help) show_help ;;
+    menu) menu ;;
+    *) die "Unknown command: $1. Use 'idontScanner help'." ;;
+esac
