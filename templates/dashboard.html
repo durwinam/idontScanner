@@ -1,192 +1,226 @@
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>idontScanner — Dashboard</title>
-    <link rel="stylesheet" href="{{base}}/static/app.css">
-</head>
+{% extends 'base.html' %}
 
-<body>
-    <div class="shell">
-        <header class="top glass">
-            <div class="brand">
-                <div class="logo pulse" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none">
-                        <path d="M12 3l7 4v5c0 4.5-2.8 7.5-7 9-4.2-1.5-7-4.5-7-9V7l7-4Z"/>
-                        <path d="M9.5 12.2 11 13.7l3.8-4"/>
-                    </svg>
-                </div>
+{% block title %}Dashboard — idontScanner{% endblock %}
+{% block crumb %}Dashboard{% endblock %}
 
-                <div>
-                    <b>idontScanner</b>
-                    <small>SNI / TLS Scanner · v1.0.0</small>
-                </div>
-            </div>
+{% block content %}
+<section class="page-head">
+  <div>
+    <span class="eyebrow">SERVER DIAGNOSTICS</span>
+    <h1>Control center</h1>
+    <p>Run real TLS connectivity checks from this VPS and inspect every observed connection detail.</p>
+  </div>
+  <a class="primary" href="{{ base }}/scanner/">
+    {% include 'icons/radar.svg' %}
+    Open Scanner
+  </a>
+</section>
 
-            <div class="top-actions">
-                <span class="server">
-                    <i></i>{{server_ip}}
-                </span>
+<section class="stats-grid">
+  <div class="stat glass">
+    <span>Targets</span>
+    <strong>{{ domains|length }}</strong>
+    <small>configured domains</small>
+  </div>
 
-                <a
-                    href="{{base}}/logout/"
-                    class="icon-btn"
-                    title="Logout"
-                    aria-label="Logout"
-                >
-                    <svg viewBox="0 0 24 24" fill="none">
-                        <path d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4"/>
-                        <path d="M14 8l4 4-4 4M8 12h10"/>
-                    </svg>
-                </a>
-            </div>
-        </header>
+  <div class="stat glass">
+    <span>Last healthy</span>
+    <strong>{% if latest %}{{ latest.ok }}{% else %}—{% endif %}</strong>
+    <small>successful handshakes</small>
+  </div>
 
-        <section class="hero">
-            <div>
-                <span class="eyebrow">SERVER DIAGNOSTICS</span>
-                <h1>Find the fastest healthy endpoints.</h1>
-                <p>
-                    Run a controlled TLS connectivity scan from this VPS and
-                    compare latency across your approved domain list.
-                </p>
-            </div>
+  <div class="stat glass">
+    <span>Average</span>
+    <strong>
+      {% if latest and latest.average_ms %}
+        {{ '%.1f'|format(latest.average_ms) }} ms
+      {% else %}
+        —
+      {% endif %}
+    </strong>
+    <small>last scan</small>
+  </div>
 
-            <button id="scanBtn" class="primary scan">
-                <span class="radar" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="8"/>
-                        <path d="M12 12l5-5M12 4v2M20 12h-2"/>
-                    </svg>
-                </span>
-                Scan All
-            </button>
-        </section>
+  <div class="stat glass">
+    <span>Scheduler</span>
+    <strong>{% if scheduler.enabled %}ON{% else %}OFF{% endif %}</strong>
+    <small>
+      {% if scheduler.enabled %}
+        every {{ scheduler.interval_minutes // 60 }}h{% if scheduler.interval_minutes % 60 %} {{ scheduler.interval_minutes % 60 }}m{% endif %}
+      {% else %}
+        manual mode
+      {% endif %}
+    </small>
+  </div>
+</section>
 
-        <section class="stats">
-            <div class="stat glass">
-                <span>Targets</span>
-                <strong id="total">{{domains|length}}</strong>
-                <small>enabled domains</small>
-            </div>
-
-            <div class="stat glass">
-                <span>Healthy</span>
-                <strong id="healthy">—</strong>
-                <small>successful TLS handshakes</small>
-            </div>
-
-            <div class="stat glass">
-                <span>Best latency</span>
-                <strong id="best">—</strong>
-                <small>fastest successful target</small>
-            </div>
-
-            <div class="stat glass">
-                <span>Scan time</span>
-                <strong id="duration">—</strong>
-                <small>full batch duration</small>
-            </div>
-        </section>
-
-        <section class="panel glass">
-            <div class="panel-head">
-                <div>
-                    <h2>Targets</h2>
-                    <span id="scanState" class="muted">Ready to scan</span>
-                </div>
-
-                <div class="controls">
-                    <input id="search" placeholder="Search domain…">
-
-                    <button id="addBtn" class="secondary">
-                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                            <path d="M12 5v14M5 12h14"/>
-                        </svg>
-                        Add
-                    </button>
-                </div>
-            </div>
-
-            <div id="results" class="results">
-                {% for d in domains %}
-                    <div
-                        class="row"
-                        data-domain="{{d.domain}}"
-                        data-id="{{d.id}}"
-                    >
-                        <div class="domain">
-                            <div class="mini-icon" aria-hidden="true">
-                                <svg viewBox="0 0 24 24" fill="none">
-                                    <circle cx="12" cy="12" r="8"/>
-                                    <path d="M4 12h16M12 4c2 2.2 3 4.8 3 8s-1 5.8-3 8c-2-2.2-3-4.8-3-8s1-5.8 3-8Z"/>
-                                </svg>
-                            </div>
-
-                            <div>
-                                <b>{{d.label}}</b>
-                                <small>{{d.domain}}</small>
-                            </div>
-                        </div>
-
-                        <div class="result-meta">
-                            <span class="status idle">READY</span>
-                            <span class="latency">—</span>
-                            <span class="tls">—</span>
-
-                            <button
-                                class="delete"
-                                data-delete="{{d.id}}"
-                                {% if d.is_default %}disabled title="Default target"{% endif %}
-                            >
-                                ×
-                            </button>
-                        </div>
-                    </div>
-                {% endfor %}
-            </div>
-        </section>
-
-        <section class="panel glass history">
-            <div class="panel-head">
-                <div>
-                    <h2>Scan history</h2>
-                    <span class="muted">Last 20 batches</span>
-                </div>
-            </div>
-
-            <div id="history"></div>
-        </section>
+<div class="dashboard-grid">
+  <section class="panel glass">
+    <div class="panel-head">
+      <div>
+        <h2>Scanner modules</h2>
+        <span class="muted">Choose a focused diagnostic</span>
+      </div>
     </div>
 
-    <dialog id="addDialog">
-        <form method="dialog" class="dialog glass">
-            <button class="close">×</button>
+    <div class="module-grid">
+      <a href="{{ base }}/scanner/?mode=sni" class="module cyan">
+        {% include 'icons/target.svg' %}
+        <b>SNI / TLS</b>
+        <small>Behavior check and negotiated TLS details</small>
+      </a>
 
-            <h2>Add custom domain</h2>
-            <p class="muted">
-                Only domain names are accepted. No URLs or IP addresses.
-            </p>
+      <a href="{{ base }}/scanner/?mode=domain" class="module purple">
+        {% include 'icons/globe.svg' %}
+        <b>Domain Scanner</b>
+        <small>DNS, TCP, TLS and certificate diagnostics</small>
+      </a>
 
-            <label>Label</label>
-            <input id="label" maxlength="60" placeholder="My target">
+      <a href="{{ base }}/scanner/?mode=cdn" class="module blue">
+        {% include 'icons/cloud.svg' %}
+        <b>CDN Diagnostics</b>
+        <small>Endpoint and Akamai observation check</small>
+      </a>
+    </div>
+  </section>
+</div>
 
-            <label>Domain</label>
-            <input id="domain" placeholder="example.com">
+<section class="resource-panel glass" id="resourcePanel">
+  <div class="resource-head">
+    <div class="resource-title">
+      <div class="resource-icon">{% include 'icons/activity.svg' %}</div>
+      <div>
+        <div class="resource-title-row">
+          <h2>Server Resources</h2>
+          <span class="live-pill"><i></i>Realtime</span>
+        </div>
+        <span class="muted">Live system performance from this VPS</span>
+      </div>
+    </div>
+    <select id="resourceRange" class="resource-range" aria-label="Chart time range">
+      <option value="720">1 Hour</option>
+      <option value="360">30 Minutes</option>
+      <option value="180">15 Minutes</option>
+    </select>
+  </div>
 
-            <button id="saveDomain" class="primary">
-                Add domain
-            </button>
-        </form>
-    </dialog>
+  <div class="resource-grid">
+    <article class="resource-card cpu">
+      <div class="gauge-wrap">
+        <div class="gauge-ring" id="cpuGauge" data-resource="cpu">
+          <svg class="gauge-svg" viewBox="0 0 120 120" aria-hidden="true">
+            <defs>
+              <linearGradient id="cpuGaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#45e6a8"/>
+                <stop offset="52%" stop-color="#a7e85a"/>
+                <stop offset="76%" stop-color="#ffc857"/>
+                <stop offset="91%" stop-color="#ff7b5c"/>
+                <stop offset="100%" stop-color="#ff4d6d"/>
+              </linearGradient>
+            </defs>
+            <circle class="gauge-track" cx="60" cy="60" r="50"/>
+            <circle class="gauge-progress" id="cpuProgress" cx="60" cy="60" r="50" pathLength="100"/>
+          </svg>
+          <span class="gauge-glow" aria-hidden="true"></span>
+          <div class="gauge-core">
+            <span>CPU</span>
+            <strong id="cpuPercent">—</strong>
+            <small id="cpuMeta">— cores</small>
+          </div>
+        </div>
+      </div>
+      <div class="resource-mini-chart"><svg id="cpuChart" viewBox="0 0 240 70" preserveAspectRatio="none" aria-hidden="true"><path class="chart-fill"></path><path class="chart-line"></path></svg></div>
+      <div class="resource-foot"><span>Load Avg</span><b id="loadValue">—</b><span>Processes</span><b id="processValue">—</b></div>
+    </article>
 
-    <script>
-        window.IDONT = {
-            base: {{base|tojson}},
-            csrf: {{csrf|tojson}}
-        };
-    </script>
-    <script src="{{base}}/static/app.js"></script>
-</body>
-</html>
+    <article class="resource-card memory">
+      <div class="gauge-wrap">
+        <div class="gauge-ring" id="memoryGauge" data-resource="memory">
+          <svg class="gauge-svg" viewBox="0 0 120 120" aria-hidden="true">
+            <defs>
+              <linearGradient id="memoryGaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#45e6a8"/>
+                <stop offset="52%" stop-color="#a7e85a"/>
+                <stop offset="76%" stop-color="#ffc857"/>
+                <stop offset="91%" stop-color="#ff7b5c"/>
+                <stop offset="100%" stop-color="#ff4d6d"/>
+              </linearGradient>
+            </defs>
+            <circle class="gauge-track" cx="60" cy="60" r="50"/>
+            <circle class="gauge-progress" id="memoryProgress" cx="60" cy="60" r="50" pathLength="100"/>
+          </svg>
+          <span class="gauge-glow" aria-hidden="true"></span>
+          <div class="gauge-core">
+            <span>Memory</span>
+            <strong id="memoryPercent">—</strong>
+            <small id="memoryMeta">— / — GB</small>
+          </div>
+        </div>
+      </div>
+      <div class="resource-mini-chart"><svg id="memoryChart" viewBox="0 0 240 70" preserveAspectRatio="none" aria-hidden="true"><path class="chart-fill"></path><path class="chart-line"></path></svg></div>
+      <div class="resource-foot"><span>Used</span><b id="memoryUsed">—</b><span>Available</span><b id="memoryAvailable">—</b></div>
+    </article>
+
+    <article class="resource-card disk">
+      <div class="gauge-wrap">
+        <div class="gauge-ring" id="diskGauge" data-resource="disk">
+          <svg class="gauge-svg" viewBox="0 0 120 120" aria-hidden="true">
+            <defs>
+              <linearGradient id="diskGaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#45e6a8"/>
+                <stop offset="52%" stop-color="#a7e85a"/>
+                <stop offset="76%" stop-color="#ffc857"/>
+                <stop offset="91%" stop-color="#ff7b5c"/>
+                <stop offset="100%" stop-color="#ff4d6d"/>
+              </linearGradient>
+            </defs>
+            <circle class="gauge-track" cx="60" cy="60" r="50"/>
+            <circle class="gauge-progress" id="diskProgress" cx="60" cy="60" r="50" pathLength="100"/>
+          </svg>
+          <span class="gauge-glow" aria-hidden="true"></span>
+          <div class="gauge-core">
+            <span>Disk</span>
+            <strong id="diskPercent">—</strong>
+            <small id="diskMeta">— / — GB</small>
+          </div>
+        </div>
+      </div>
+      <div class="resource-mini-chart"><svg id="diskChart" viewBox="0 0 240 70" preserveAspectRatio="none" aria-hidden="true"><path class="chart-fill"></path><path class="chart-line"></path></svg></div>
+      <div class="resource-foot"><span>Used</span><b id="diskUsed">—</b><span>Free</span><b id="diskFree">—</b></div>
+    </article>
+  </div>
+
+  <div class="resource-bottom">
+    <div class="resource-detail">{% include 'icons/clock.svg' %}<span>Uptime<b id="uptimeValue">—</b></span></div>
+    <div class="resource-detail">{% include 'icons/network.svg' %}<span>Network (all)<b id="networkValue">↓ — MB/s&nbsp;&nbsp; ↑ — MB/s</b></span></div>
+    <div class="resource-detail temperature-detail">{% include 'icons/thermometer.svg' %}<span>Temperature<b id="temperatureValue">—</b></span><span class="temperature-bar"><i id="temperatureBar"></i></span></div>
+  </div>
+</section>
+
+<section class="panel glass recent-panel">
+  <div class="panel-head">
+    <div>
+      <h2>Recent devices</h2>
+      <span class="muted">Last 3 authenticated sessions</span>
+    </div>
+    <a class="text-link" href="{{ base }}/account/">View all</a>
+  </div>
+
+  {% for s in sessions %}
+  <div class="session-row">
+    <div class="device-icon">{% include 'icons/devices.svg' %}</div>
+    <div>
+      <b>{{ s.device }}</b>
+      <small>{{ s.ip }}</small>
+    </div>
+    <time>{{ s.last_seen|int }}</time>
+  </div>
+  {% else %}
+  <div class="empty">No recent devices.</div>
+  {% endfor %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ base }}/static/dashboard.js"></script>
+{% endblock %}

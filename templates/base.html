@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#090b12">
+  <title>{% block title %}idontScanner{% endblock %}</title>
+  <link rel="stylesheet" href="{{ base }}/static/app.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="side-head">
+      <a class="brand" href="{{ base }}/dashboard/">
+        <span class="logo">{% include 'icons/radar.svg' %}</span>
+        <span><b>idontScanner</b><small>v2.0.0 · Diagnostics</small></span>
+      </a>
+      <button class="menu-close" id="menuClose" aria-label="Close menu">{% include 'icons/x.svg' %}</button>
+    </div>
+    <div class="side-status"><span class="dot"></span> VPS online <small>{{ server_ip }}</small></div>
+    <nav class="nav">
+      <a class="nav-item {% if active=='dashboard' %}active{% endif %}" href="{{ base }}/dashboard/">{% include 'icons/grid.svg' %}<span>Dashboard</span></a>
+      <div class="nav-group">
+        <div class="nav-label">Scanner</div>
+        <a class="nav-item {% if active=='scanner' %}active{% endif %}" href="{{ base }}/scanner/">{% include 'icons/radar.svg' %}<span>Scanner</span><em>›</em></a>
+        <a class="nav-sub" href="{{ base }}/scanner/?mode=sni">{% include 'icons/target.svg' %} SNI / TLS Check</a>
+        <a class="nav-sub" href="{{ base }}/scanner/?mode=domain">{% include 'icons/globe.svg' %} Domain Scanner</a>
+        <a class="nav-sub" href="{{ base }}/scanner/?mode=cdn">{% include 'icons/cloud.svg' %} CDN Diagnostics</a>
+        <a class="nav-sub" href="{{ base }}/connection/">{% include 'icons/target.svg' %} Connection Tester</a>
+      </div>
+      <a class="nav-item {% if active=='history' %}active{% endif %}" href="{{ base }}/history/">{% include 'icons/history.svg' %}<span>History</span></a>
+      <a class="nav-item {% if active=='domains' %}active{% endif %}" href="{{ base }}/domains/">{% include 'icons/globe.svg' %}<span>Domains</span></a>
+      <a class="nav-item" href="{{ base }}/settings/">{% include 'icons/bell.svg' %}<span>Scheduler</span></a>
+      <div class="nav-divider"></div>
+      <div class="nav-label">Account</div>
+      <a class="nav-item {% if active=='account' %}active{% endif %}" href="{{ base }}/account/">{% include 'icons/user.svg' %}<span>Account & Devices</span></a>
+      <a class="nav-item {% if active=='settings' %}active{% endif %}" href="{{ base }}/settings/">{% include 'icons/settings.svg' %}<span>Settings</span></a>
+    </nav>
+    <div class="side-foot">
+      <a class="logout" href="{{ base }}/logout/">{% include 'icons/logout.svg' %} Logout</a>
+    </div>
+  </aside>
+  <div class="mobile-overlay" id="overlay"></div>
+  <main class="main">
+    <header class="topbar glass">
+      <button class="hamburger" id="menuOpen" aria-label="Open menu">{% include 'icons/menu.svg' %}</button>
+      <div class="crumb">{% block crumb %}Dashboard{% endblock %}</div>
+      <div class="top-user"><span class="avatar">{{ username[:1]|upper }}</span><span class="desktop-only">{{ username }}</span></div>
+    </header>
+    {% block content %}{% endblock %}
+  </main>
+</div>
+<script>window.IDONT={base:{{base|tojson}},csrf:{{csrf|tojson}},username:{{username|tojson}}}</script>
+<script src="{{base}}/static/app.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

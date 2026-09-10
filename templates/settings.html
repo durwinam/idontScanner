@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+
+{% block title %}Settings — idontScanner{% endblock %}
+{% block crumb %}Settings{% endblock %}
+
+{% block content %}
+<span id="schedulerIntervalValue" hidden>{{ scheduler.interval_minutes if scheduler else 60 }}</span>
+
+<section class="page-head">
+  <div>
+    <span class="eyebrow">AUTOMATION</span>
+    <h1>Scheduler &amp; Telegram</h1>
+    <p>Optional automation. Scheduler is off by default and survives a VPS restart.</p>
+  </div>
+</section>
+
+<div class="two-col settings-layout">
+  <section class="panel glass settings-panel">
+    <div class="panel-head settings-panel-head">
+      <div class="section-title">
+        <span class="section-icon section-icon--cyan">
+          {% include 'icons/clock.svg' %}
+        </span>
+        <div>
+          <h2>Scheduler</h2>
+          <span class="muted">30 minutes to 24 hours · 30-minute steps</span>
+        </div>
+      </div>
+      <span id="schedulerBadge" class="badge {% if scheduler.enabled %}good{% endif %}">
+        {% if scheduler.enabled %}ON{% else %}OFF{% endif %}
+      </span>
+    </div>
+
+    <div class="settings-body">
+      <label class="check-row custom-check-row" for="schedulerEnabled">
+        <span>
+          <strong>Enable automatic scans</strong>
+          <small class="field-hint">Run the configured scanner automatically.</small>
+        </span>
+        <span class="custom-checkbox">
+          <input id="schedulerEnabled" type="checkbox" {% if scheduler.enabled %}checked{% endif %}>
+          <span class="checkbox-box" aria-hidden="true">{% include 'icons/check.svg' %}</span>
+        </span>
+      </label>
+
+      <label>
+        Interval
+        <select id="interval">
+          <option value="30">30 minutes</option>
+          <option value="60">1 hour</option>
+          <option value="90">1.5 hours</option>
+          <option value="120">2 hours</option>
+          <option value="180">3 hours</option>
+          <option value="360">6 hours</option>
+          <option value="720">12 hours</option>
+          <option value="1440">24 hours</option>
+        </select>
+      </label>
+
+      <label>
+        Telegram notification mode
+        <select id="notifyMode">
+          <option value="all" {% if scheduler.notify_mode == 'all' %}selected{% endif %}>Every scheduled result</option>
+          <option value="changes" {% if scheduler.notify_mode == 'changes' %}selected{% endif %}>Only attention / failures</option>
+        </select>
+      </label>
+
+      <button class="primary settings-submit" id="saveScheduler">
+        {% include 'icons/check.svg' %}
+        Save scheduler
+      </button>
+      <div id="schedulerMessage" class="message"></div>
+    </div>
+  </section>
+
+  <section class="panel glass settings-panel">
+    <div class="panel-head settings-panel-head">
+      <div class="section-title">
+        <span class="section-icon section-icon--blue">
+          {% include 'icons/bot.svg' %}
+        </span>
+        <div>
+          <h2>Telegram bot</h2>
+          <span class="muted">Polling mode works without HTTPS.</span>
+        </div>
+      </div>
+      <span class="badge {% if telegram_configured %}good{% endif %}">
+        {% if telegram_configured %}CONNECTED{% else %}NOT SET{% endif %}
+      </span>
+    </div>
+
+    <div class="settings-body telegram-settings-body">
+      <div class="settings-field-group">
+        <label for="telegramToken">Bot token</label>
+        <div class="input-shell input-shell--secret">
+          <span class="input-icon">{% include 'icons/lock.svg' %}</span>
+          <input id="telegramToken" type="password" placeholder="123456:ABC…" autocomplete="off" spellcheck="false">
+        </div>
+        <small class="field-hint">The token is validated directly with Telegram and is never shown after saving.</small>
+      </div>
+
+      <div class="settings-field-group">
+        <label for="telegramOwnerId">Owner Telegram ID</label>
+        <div class="input-shell">
+          <span class="input-icon">{% include 'icons/user.svg' %}</span>
+          <input id="telegramOwnerId" inputmode="numeric" pattern="[0-9]*" placeholder="123456789" value="{{ telegram_owner_id }}">
+        </div>
+      </div>
+
+      <div class="settings-field-group">
+        <label for="telegramAdminIds">Admin Telegram IDs</label>
+        <div class="input-shell">
+          <span class="input-icon">{% include 'icons/devices.svg' %}</span>
+          <input id="telegramAdminIds" inputmode="numeric" placeholder="123456789, 987654321" value="{{ telegram_admin_ids }}">
+        </div>
+        <small class="field-hint">Separate multiple numeric IDs with commas. Usernames are not accepted.</small>
+      </div>
+
+      <div class="telegram-status" id="telegramStatus">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span>Checking Telegram connection…</span>
+      </div>
+
+      <p class="settings-note">
+        <span class="note-icon">{% include 'icons/shield.svg' %}</span>
+        <span>Only the configured Owner and Admin Telegram IDs can use this bot. Telegram commands and access rules are configured automatically.</span>
+      </p>
+
+      <div class="button-row settings-actions">
+        <button class="primary settings-submit" id="saveTelegram">
+          {% include 'icons/check.svg' %}
+          Save Telegram settings
+        </button>
+        <button class="secondary danger-outline" id="disableTelegram">
+          {% include 'icons/x.svg' %}
+          Disconnect
+        </button>
+      </div>
+
+      <a id="openTelegram" class="telegram-open" href="#" target="_blank" rel="noopener" hidden>
+        {% include 'icons/telegram.svg' %}
+        Open bot in Telegram
+      </a>
+
+      <div id="telegramMessage" class="message"></div>
+
+      <div class="telegram-preview">
+        <div class="preview-title">
+          <span class="preview-icon">{% include 'icons/bot.svg' %}</span>
+          <strong>Bot access</strong>
+        </div>
+        <div class="preview-meta">
+          <span>{% include 'icons/crown.svg' %} Owner</span>
+          <span>{% include 'icons/user.svg' %} Admins</span>
+        </div>
+        <div class="preview-commands">
+          <code>/start</code>
+          <code>/menu</code>
+          <code>/scan</code>
+          <code>/status</code>
+          <code>/history</code>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ base }}/static/settings.js"></script>
+{% endblock %}

@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+
+{% block title %}Scanner — idontScanner{% endblock %}
+{% block crumb %}Scanner{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <span class="eyebrow">DIAGNOSTIC LAB</span>
+    <h1>Scanner</h1>
+    <p>Every value below is collected from the actual connection. Unavailable fields are shown as N/A.</p>
+  </div>
+  <button class="primary" id="scanBtn">
+    {% include 'icons/radar.svg' %}
+    Scan All
+  </button>
+</section>
+
+<div class="scanner-tabs">
+  <a data-mode="domain" href="?mode=domain">🌐 Domain Scanner</a>
+  <a data-mode="sni" href="?mode=sni">🎯 SNI / TLS Check</a>
+  <a data-mode="cdn" href="?mode=cdn">☁️ CDN Diagnostics</a>
+</div>
+
+<section id="modeDomain" class="mode-card glass">
+  <div class="panel-head">
+    <div>
+      <h2>Domain / TLS scanner</h2>
+      <span id="scanState" class="muted">Ready to scan {{ domains|length }} enabled targets.</span>
+    </div>
+    <input id="search" class="search" placeholder="Search domain…">
+  </div>
+
+  <div id="results" class="results">
+    {% for d in domains %}
+    <div class="result-row" data-domain="{{ d.domain }}" data-id="{{ d.id }}">
+      <div class="result-main">
+        <div class="mini-icon">{% include 'icons/globe.svg' %}</div>
+        <div>
+          <b>{{ d.label }}</b>
+          <small>{{ d.domain }}:443 · {{ d.category }}</small>
+        </div>
+      </div>
+
+      <div class="result-right">
+        <span class="status idle">READY</span>
+        <strong class="latency">—</strong>
+        <small class="tls">—</small>
+        <button class="more" data-details="{{ d.id }}" type="button" title="View details" aria-label="View details">
+          {% include 'icons/more.svg' %}
+        </button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section id="modeSni" class="mode-card glass hidden">
+  <div class="panel-head">
+    <div>
+      <h2>SNI behavior check</h2>
+      <span class="muted">Compare a target endpoint with a chosen SNI value.</span>
+    </div>
+  </div>
+
+  <div class="form-grid">
+    <label>
+      Target domain
+      <input id="sniTarget" placeholder="example.com">
+    </label>
+    <label>
+      Test SNI
+      <input id="sniValue" placeholder="example.com">
+    </label>
+  </div>
+
+  <button class="primary" id="sniBtn">
+    {% include 'icons/target.svg' %}
+    Check SNI
+  </button>
+  <div id="sniResult" class="detail-card empty">No check yet.</div>
+</section>
+
+<section id="modeCdn" class="mode-card glass hidden">
+  <div class="panel-head">
+    <div>
+      <h2>CDN / Akamai diagnostics</h2>
+      <span class="muted">Observe a specific endpoint; this does not scan provider IP ranges.</span>
+    </div>
+  </div>
+
+  <div class="form-grid">
+    <label>
+      Domain
+      <input id="cdnDomain" placeholder="example.com">
+    </label>
+  </div>
+
+  <button class="primary" id="cdnBtn">
+    {% include 'icons/cloud.svg' %}
+    Inspect Endpoint
+  </button>
+  <div id="cdnResult" class="detail-card empty">No check yet.</div>
+</section>
+
+<dialog id="detailsDialog">
+  <div class="dialog glass">
+    <button class="close" id="detailClose" type="button" aria-label="Close">×</button>
+    <div id="detailContent"></div>
+  </div>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+<script>window.IDONT_MODE = {{ request.query_params.get('mode', 'domain')|tojson }};</script>
+<script src="{{ base }}/static/scanner.js"></script>
+{% endblock %}

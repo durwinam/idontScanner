@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+
+{% block title %}Account — idontScanner{% endblock %}
+{% block crumb %}Account & Devices{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <span class="eyebrow">SECURITY</span>
+    <h1>Account & devices</h1>
+    <p>Change credentials and inspect the three most recent authenticated devices.</p>
+  </div>
+</section>
+
+<div class="two-col">
+  <section class="panel glass">
+    <div class="panel-head">
+      <div>
+        <h2>Account</h2>
+        <span class="muted">Current username</span>
+      </div>
+    </div>
+
+    <div class="settings-body">
+      <label>
+        Username
+        <input id="username" value="{{ username }}" maxlength="32">
+      </label>
+
+      <button class="secondary" id="saveUsername">Save username</button>
+
+      <hr>
+
+      <h3>Change password</h3>
+
+      <label>
+        Current password
+        <input id="currentPassword" type="password">
+      </label>
+
+      <label>
+        New password
+        <input id="newPassword" type="password" minlength="8">
+      </label>
+
+      <label>
+        Confirm new password
+        <input id="confirmPassword" type="password" minlength="8">
+      </label>
+
+      <button class="primary" id="changePassword">Change password</button>
+      <div id="accountMessage" class="message"></div>
+    </div>
+  </section>
+
+  <section class="panel glass">
+    <div class="panel-head">
+      <div>
+        <h2>Recent devices</h2>
+        <span class="muted">Only the latest 3 are retained.</span>
+      </div>
+    </div>
+
+    <div id="sessions">
+      {% for s in sessions %}
+      <div class="device-card">
+        <div class="device-icon">{% include 'icons/devices.svg' %}</div>
+        <div>
+          <b>{{ s.device }}</b>
+          <small>IP · {{ s.ip }}</small>
+          <small>{{ s.last_seen|int }}</small>
+        </div>
+      </div>
+      {% else %}
+      <div class="empty">No recent devices.</div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ base }}/static/account.js"></script>
+{% endblock %}

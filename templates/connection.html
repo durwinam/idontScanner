@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+
+{% block title %}Connection Tester — idontScanner{% endblock %}
+{% block crumb %}Connection Tester{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <span class="eyebrow">CONNECTION LAB</span>
+    <h1>Connection Tester</h1>
+    <p>Detect VLESS, VMess, Trojan, Shadowsocks, Hysteria2, or WireGuard configurations and measure endpoint timing from this VPS.</p>
+  </div>
+</section>
+
+<section class="mode-card glass connection-panel">
+  <div class="panel-head connection-panel-head">
+    <div class="section-title">
+      <span class="section-icon section-icon--cyan">
+        {% include 'icons/target.svg' %}
+      </span>
+      <div>
+        <h2>Multi-protocol diagnostics</h2>
+        <span class="muted">Auto-detects supported panel formats. Credentials are never displayed or stored.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="connection-notice">
+    <span class="notice-icon">{% include 'icons/shield.svg' %}</span>
+    <p>Service checks run directly from this VPS. The supplied configuration is used for endpoint diagnostics and is not used to route service traffic.</p>
+  </div>
+
+  <div class="config-editor">
+    <div class="config-editor-head">
+      <label for="connectionConfig">Configuration</label>
+      <button class="editor-action" id="connectionPaste" type="button">
+        {% include 'icons/paste.svg' %}
+        Paste
+      </button>
+    </div>
+
+    <div class="textarea-shell">
+      <span class="textarea-icon">{% include 'icons/code.svg' %}</span>
+      <textarea id="connectionConfig" rows="7" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" placeholder="vless://UUID@example.com:443?type=ws&amp;security=tls&amp;sni=example.com#test"></textarea>
+    </div>
+    <div class="config-editor-foot">
+      <span>Paste one supported URI or a WireGuard .conf file.</span>
+      <span id="connectionCharCount">0 chars</span>
+    </div>
+  </div>
+
+  <div class="button-row connection-actions">
+    <button class="primary settings-submit" id="connectionBtn">
+      {% include 'icons/target.svg' %}
+      Test Connection
+    </button>
+    <button class="secondary" id="connectionClear" type="button">
+      {% include 'icons/x.svg' %}
+      Clear
+    </button>
+  </div>
+
+  <div id="connectionResult" class="detail-card empty">No test yet.</div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ base }}/static/connection.js"></script>
+{% endblock %}

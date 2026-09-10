@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block title %}Domains — idontScanner{% endblock %}
+{% block crumb %}Domains{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <span class="eyebrow">TARGET MANAGEMENT</span>
+    <h1>Domains</h1>
+    <p>Manage the targets included in the TLS scanner.</p>
+  </div>
+  <button class="primary" id="addDomain">
+    {% include 'icons/plus.svg' %}
+    Add domain
+  </button>
+</section>
+
+<section class="panel glass">
+  <div class="panel-head">
+    <div>
+      <h2>Configured targets</h2>
+      <span class="muted">All HTTPS targets use port 443.</span>
+    </div>
+    <input id="domainSearch" class="search" placeholder="Search domain…">
+  </div>
+
+  <div class="domain-list">
+    {% for d in domains %}
+    <div class="domain-row" data-search="{{ d.label }} {{ d.domain }} {{ d.category }}">
+      <div class="mini-icon">{% include 'icons/globe.svg' %}</div>
+      <div class="domain-main">
+        <b>{{ d.label }}</b>
+        <small>{{ d.domain }}:443 · {{ d.category }}</small>
+      </div>
+      <label class="switch">
+        <input type="checkbox" data-toggle="{{ d.id }}" {% if d.enabled %}checked{% endif %}>
+        <span></span>
+      </label>
+      {% if not d.is_default %}
+      <button class="more" data-delete="{{ d.id }}" type="button" title="Delete domain" aria-label="Delete domain">
+        {% include 'icons/x.svg' %}
+      </button>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="empty">No domains configured.</div>
+    {% endfor %}
+  </div>
+</section>
+
+<dialog id="addDomainDialog">
+  <div class="dialog glass">
+    <button class="close" id="addClose" type="button" aria-label="Close">×</button>
+    <h2>Add custom domain</h2>
+    <form>
+      <label>
+        Label
+        <input id="newLabel" maxlength="60" placeholder="Example">
+      </label>
+      <label>
+        Domain
+        <input id="newDomain" required placeholder="example.com">
+      </label>
+      <label>
+        Category
+        <input id="newCategory" maxlength="30" placeholder="Custom">
+      </label>
+      <button class="primary" id="saveDomain" type="submit">Save domain</button>
+    </form>
+  </div>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ base }}/static/domains.js"></script>
+{% endblock %}

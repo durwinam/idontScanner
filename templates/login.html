@@ -1,81 +1,71 @@
 <!doctype html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>idontScanner — Login</title>
-    <link rel="stylesheet" href="{{base}}/static/app.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#090b12">
+  <title>Login — idontScanner</title>
+  <link rel="stylesheet" href="{{ base }}/static/app.css">
 </head>
+<body class="login-body">
+  <main class="login-shell">
+    <section class="login-card glass">
+      <div class="brand login-brand">
+        <span class="logo">{% include 'icons/radar.svg' %}</span>
+        <span>
+          <b>idontScanner</b>
+          <small>Secure SNI / TLS diagnostics</small>
+        </span>
+      </div>
 
-<body>
-    <main class="auth">
-        <section class="auth-card glass">
-            <div class="brand">
-                <div class="logo" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none">
-                        <path d="M12 3l7 4v5c0 4.5-2.8 7.5-7 9-4.2-1.5-7-4.5-7-9V7l7-4Z"/>
-                        <path d="M9.5 12.2 11 13.7l3.8-2.8"/>
-                    </svg>
-                </div>
+      <span class="eyebrow">PRIVATE VPS PANEL</span>
+      <h1>Welcome back</h1>
+      <p>Sign in to your private scanner panel.</p>
 
-                <div>
-                    <b>idontScanner</b>
-                    <small>Secure SNI / TLS diagnostics</small>
-                </div>
-            </div>
+      {% if request.query_params.get('error') == 'csrf' %}
+      <div class="alert">Your session expired. Refresh the page and try again.</div>
+      {% elif request.query_params.get('error') == 'weak' %}
+      <div class="alert">Username must be 3–32 characters and password must be at least 8 characters.</div>
+      {% elif request.query_params.get('error') == 'invalid' %}
+      <div class="alert">Invalid username or password.</div>
+      {% endif %}
 
-            <h1>
-                {% if setup %}Create admin access{% else %}Welcome back{% endif %}
-            </h1>
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
 
-            <p class="muted">
-                {% if setup %}
-                    First launch: use the administrator credentials created during installation.
-                {% else %}
-                    Sign in to your private scanner panel.
-                {% endif %}
-            </p>
+        <label>
+          Username
+          <input
+            name="username"
+            minlength="3"
+            maxlength="32"
+            required
+            autocomplete="username"
+            autocapitalize="none"
+            spellcheck="false"
+            placeholder="admin"
+          >
+        </label>
 
-            {% if request.query_params.get('error') %}
-                <div class="alert">
-                    Authentication request could not be completed.
-                </div>
-            {% endif %}
+        <label>
+          Password
+          <input
+            name="password"
+            type="password"
+            minlength="8"
+            required
+            autocomplete="current-password"
+          >
+        </label>
 
-            <form method="post">
-                <input type="hidden" name="csrf_token" value="{{csrf}}">
+        <button class="primary wide" type="submit">
+          {% include 'icons/lock.svg' %}
+          {% if setup %}Initialize Panel{% else %}Sign In{% endif %}
+        </button>
+      </form>
 
-                <label>Username</label>
-                <input
-                    name="username"
-                    type="text"
-                    minlength="3"
-                    maxlength="32"
-                    required
-                    autocomplete="username"
-                >
-
-                <label>Password</label>
-                <input
-                    name="password"
-                    type="password"
-                    minlength="8"
-                    required
-                    autocomplete="current-password"
-                >
-
-                <button class="primary" type="submit">
-                    <span class="ico" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none">
-                            <path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/>
-                        </svg>
-                    </span>
-                    Sign In
-                </button>
-            </form>
-
-            <footer>v1.0.0 · local-first security</footer>
-        </section>
-    </main>
+      <footer>v2.0.0 · HTTP local-first security</footer>
+    </section>
+  </main>
 </body>
 </html>

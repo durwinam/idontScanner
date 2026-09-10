@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block title %}History — idontScanner{% endblock %}
+{% block crumb %}History{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <span class="eyebrow">SCAN HISTORY</span>
+    <h1>History</h1>
+    <p>Review the last 20 scan batches and open the raw observed result set.</p>
+  </div>
+</section>
+
+<section class="panel glass history-panel">
+  <div id="historyList" class="history-list">
+    <div class="empty">Loading…</div>
+  </div>
+</section>
+
+<dialog id="historyDialog">
+  <div class="dialog glass">
+    <button class="close" id="historyClose" aria-label="Close history details">
+      {% include 'icons/x.svg' %}
+    </button>
+    <div id="historyDetails"></div>
+  </div>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ base }}/static/history.js"></script>
+{% endblock %}
