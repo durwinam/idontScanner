@@ -3,7 +3,7 @@
 # ⚡ idontScanner
 
 <p align="center">
-  <img src="logo.PNG" alt="idontScnner Logo" width="420">
+  <img src="logo.PNG" alt="idontScnner Logo" width="320">
 </p>
 
 ### پنل حرفه‌ای تشخیص و عیب‌یابی SNI / TLS برای VPS
