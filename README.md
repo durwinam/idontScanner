@@ -2,6 +2,10 @@
 
 # ⚡ idontScanner
 
+<p align="center">
+  <img src="logo.PNG" alt="idontScnner Logo" width="420">
+</p>
+
 ### پنل حرفه‌ای تشخیص و عیب‌یابی SNI / TLS برای VPS
 
 **idontScanner** یک پنل سبک، سریع و Self-Hosted برای بررسی وضعیت اتصال TLS، زمان DNS/TCP/TLS، گواهی، ALPN، Cipher، وضعیت دامنه‌ها و تاریخچه‌ی اسکن است.
