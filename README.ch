@@ -1,4 +1,8 @@
-<div dir="rtl">
+**🇮🇷 فارسی | 🇬🇧 English | 🇷🇺 Русский | 🇨🇳 中文**
+
+[فارسی](README.md) · [English](README.en) · [Русский](README.ru) · [中文](README.ch)
+
+---
 
 # ⚡ idontScanner
 
@@ -350,4 +354,3 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 
 MIT License — Copyright © 2026 **durwinam**
 
-</div>
