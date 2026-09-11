@@ -22,8 +22,41 @@ from app.scanner import run_scan
 # This identifier is a valid Telegram custom emoji identifier used by the
 # official Bot API documentation. Replace it with a preferred custom emoji ID
 # if the bot owner wants a different Premium visual.
-PREMIUM_EMOJI_ID = "5368324170671202286"
-PREMIUM_EMOJI_FALLBACK = "👍"
+PREMIUM_EMOJIS = {
+   "👋": "5454390891466726015",
+   "⚡": "5085022089103016925",
+   "⚡️": "5085022089103016925",
+   "⚙️": "5116222002851480476",
+   "🔒": "5116516255355897110",
+   "✅": "6016907976609107800",
+   "🔴": "6001066256025785838",
+   "🟡": "6001542748287539188",
+   "🔵": "6001233652376146830",
+   "👤": "5974038293120027938",
+   "🌐": "5974475701179387553",
+   "📊": "5118775128980718591",
+   "❗️": "5976801477509778431",
+   "🔄": "6012661228910939253",
+   "⏰": "5809742105987259196",
+}
+ 
+PREMIUM_EMOJI_FALLBACKS = {
+   "👋": "👋",
+   "⚡": "⚡",
+   "⚡️": "⚡️",
+   "⚙️": "⚙️",
+   "🔒": "🔒",
+   "✅": "✅",
+   "🔴": "🔴",
+   "🟡": "🟡",
+   "🔵": "🔵",
+   "👤": "👤",
+   "🌐": "🌐",
+   "📊": "📊",
+   "❗️": "❗️",
+   "🔄": "🔄",
+   "⏰": "⏰",
+}
  
  
 MENU_ITEMS = {
@@ -92,17 +125,20 @@ def is_premium_user(user):
    return bool((user or {}).get("is_premium", False))
  
  
-def premium_emoji():
-   """Return a Telegram HTML custom-emoji entity with a safe fallback."""
-   return (
-       f'<tg-emoji emoji-id="{PREMIUM_EMOJI_ID}">'
-       f"{PREMIUM_EMOJI_FALLBACK}</tg-emoji>"
-   )
+def premium_emoji(emoji):
+   """Return the mapped Telegram custom emoji with a safe fallback."""
+   emoji_id = PREMIUM_EMOJIS.get(emoji)
+   fallback = PREMIUM_EMOJI_FALLBACKS.get(emoji, emoji)
+ 
+   if not emoji_id:
+       return emoji
+ 
+   return f'<tg-emoji emoji-id="{emoji_id}">{fallback}</tg-emoji>'
  
  
 def ui_emoji(emoji, premium):
-   """Select the Premium custom emoji or the normal Unicode emoji."""
-   return premium_emoji() if premium else emoji
+   """Select the mapped Premium emoji or the normal Unicode emoji."""
+   return premium_emoji(emoji) if premium else emoji
  
  
 def button(text, emoji, callback_data, premium):
@@ -112,8 +148,8 @@ def button(text, emoji, callback_data, premium):
        "callback_data": callback_data,
    }
  
-   if premium:
-       item["icon_custom_emoji_id"] = PREMIUM_EMOJI_ID
+   if premium and emoji in PREMIUM_EMOJIS:
+       item["icon_custom_emoji_id"] = PREMIUM_EMOJIS[emoji]
    else:
        item["text"] = f"{emoji} {text}"
  
@@ -148,13 +184,13 @@ def main_keyboard(premium):
 def menu_text(premium, first_name=None):
    """Build the personalized dashboard header."""
    name = html.escape(first_name or "User")
-   badge = f" {premium_emoji()}" if premium else ""
+   badge = f" {ui_emoji('👋', premium)}" if premium else ""
    tier = "Premium" if premium else "Standard"
  
    return (
        f"<b>🛰 idontScanner</b>{badge}\n"
        "━━━━━━━━━━━━━━━━━━\n"
-       f"👤 <b>{name}</b> · <b>{tier}</b>\n\n"
+       f"{ui_emoji('👤', premium)} <b>{name}</b> · <b>{tier}</b>\n\n"
        f"{ui_emoji('✨', premium)} <b>Choose an action:</b>"
    )
  
@@ -217,18 +253,18 @@ def format_scan_message(scan, premium=False, scheduled=False):
        "━━━━━━━━━━━━━━━━━━",
        f"{ui_emoji('🔄', premium)} <b>{title}</b>",
        "",
-       f"🌐 Targets: <b>{scan.get('total', 0)}</b>",
+       f"{ui_emoji('🌐', premium)} Targets: <b>{scan.get('total', 0)}</b>",
        f"🟢 Online: <b>{scan.get('ok', 0)}</b>",
-       f"🟡 Slow: <b>{scan.get('slow', 0)}</b>",
-       f"🔴 Failed: <b>{scan.get('failed', 0)}</b>",
+       f"{ui_emoji('🟡', premium)} Slow: <b>{scan.get('slow', 0)}</b>",
+       f"{ui_emoji('🔴', premium)} Failed: <b>{scan.get('failed', 0)}</b>",
        "",
-       f"⚡ Average: <b>{scan.get('average_ms') if scan.get('average_ms') is not None else 'N/A'} ms</b>",
-       f"⏱ Duration: <b>{scan.get('duration_ms', 'N/A')} ms</b>",
+       f"{ui_emoji('⚡️', premium)} Average: <b>{scan.get('average_ms') if scan.get('average_ms') is not None else 'N/A'} ms</b>",
+       f"{ui_emoji('⏰', premium)} Duration: <b>{scan.get('duration_ms', 'N/A')} ms</b>",
        "",
        "<b>🏅 Performance Ranks</b>",
-       f"⚡ Excellent: <b>{ranked['excellent']}</b>  ·  🟢 Good: <b>{ranked['good']}</b>",
-       f"🔵 Normal: <b>{ranked['normal']}</b>  ·  🟡 Slow: <b>{ranked['slow']}</b>",
-       f"🟠 Very Slow: <b>{ranked['very_slow']}</b>  ·  🔴 Critical: <b>{ranked['critical']}</b>",
+       f"{ui_emoji('⚡️', premium)} Excellent: <b>{ranked['excellent']}</b>  ·  🟢 Good: <b>{ranked['good']}</b>",
+       f"{ui_emoji('🔵', premium)} Normal: <b>{ranked['normal']}</b>  ·  {ui_emoji('🟡', premium)} Slow: <b>{ranked['slow']}</b>",
+       f"🟠 Very Slow: <b>{ranked['very_slow']}</b>  ·  {ui_emoji('🔴', premium)} Critical: <b>{ranked['critical']}</b>",
        "",
        fastest_line(),
        slowest_line(),
@@ -250,8 +286,8 @@ def format_status(premium):
        f"<b>🛰 idontScanner Status</b>\n"
        "━━━━━━━━━━━━━━━━━━\n"
        f"{ui_emoji('🟢', premium)} Scheduler: <b>{status}</b>\n"
-       f"⏱ Interval: <b>{row['interval_minutes']} min</b>\n"
-       f"🔐 Authorized: <b>YES</b>"
+       f"{ui_emoji('⏰', premium)} Interval: <b>{row['interval_minutes']} min</b>\n"
+       f"{ui_emoji('🔒', premium)} Authorized: <b>YES</b>"
    )
  
  
@@ -270,12 +306,12 @@ def format_scheduler(premium):
        f"<b>⏱ Scheduler</b>\n"
        "━━━━━━━━━━━━━━━━━━\n"
        f"{ui_emoji('🟢' if row['enabled'] else '🔴', premium)} Status: <b>{status}</b>\n"
-       f"🔁 Interval: <b>{row['interval_minutes']} min</b>\n"
-       f"🕒 Next run: <b>{html.escape(next_run)}</b>"
+       f"{ui_emoji('🔄', premium)} Interval: <b>{row['interval_minutes']} min</b>\n"
+       f"{ui_emoji('⏰', premium)} Next run: <b>{html.escape(next_run)}</b>"
    )
  
  
-def format_history():
+def format_history(premium=False):
    with db() as con:
        rows = con.execute(
            """
@@ -287,9 +323,9 @@ def format_history():
        ).fetchall()
  
    if not rows:
-       return "<b>📜 Scan History</b>\n━━━━━━━━━━━━━━━━━━\nNo scans recorded yet."
+       return f"{ui_emoji('📜', premium)} <b>Scan History</b>\n━━━━━━━━━━━━━━━━━━\nNo scans recorded yet."
  
-   lines = ["<b>📜 Scan History</b>", "━━━━━━━━━━━━━━━━━━"]
+   lines = [f"{ui_emoji('📜', premium)} <b>Scan History</b>", "━━━━━━━━━━━━━━━━━━"]
    for row in rows:
        stamp = datetime.fromtimestamp(
            row["started_at"],
@@ -299,13 +335,13 @@ def format_history():
        average_text = f"{average} ms" if average is not None else "N/A"
        lines.append(
            f"<b>#{row['id']}</b> · {stamp}\n"
-           f"🌐 {row['total']} · 🟢 {row['ok']} · "
-           f"🟡 {row['slow']} · 🔴 {row['failed']} · ⚡ {average_text}"
+           f"{ui_emoji('🌐', premium)} {row['total']} · 🟢 {row['ok']} · "
+           f"{ui_emoji('🟡', premium)} {row['slow']} · {ui_emoji('🔴', premium)} {row['failed']} · {ui_emoji('⚡️', premium)} {average_text}"
        )
    return "\n\n".join(lines)
  
  
-def format_domains():
+def format_domains(premium=False):
    with db() as con:
        total = con.execute(
            "SELECT COUNT(*) FROM domains"
@@ -325,7 +361,7 @@ def format_domains():
        ).fetchall()
  
    lines = [
-       "<b>🌐 Domains</b>",
+       f"{ui_emoji('🌐', premium)} <b>Domains</b>",
        "━━━━━━━━━━━━━━━━━━",
        f"Total: <b>{total}</b>",
        f"Enabled: <b>{enabled}</b>",
@@ -347,7 +383,7 @@ def format_diagnostics(premium):
  
    return "\n".join(
        [
-           "<b>🧪 Diagnostics</b>",
+           f"{ui_emoji('❗️', premium)} <b>Diagnostics</b>",
            "━━━━━━━━━━━━━━━━━━",
            f"{ui_emoji('🟢', premium)} Database: <b>OK</b>",
            f"{ui_emoji('🟢' if token_configured else '🔴', premium)} Telegram Token: <b>{'Configured' if token_configured else 'Missing'}</b>",
@@ -358,9 +394,9 @@ def format_diagnostics(premium):
    )
  
  
-def format_help():
+def format_help(premium=False):
    return (
-       "<b>ℹ️ idontScanner Help</b>\n"
+       f"{ui_emoji('❗️', premium)} <b>idontScanner Help</b>\n"
        "━━━━━━━━━━━━━━━━━━\n"
        "Use the buttons for the main controls.\n\n"
        "<b>Commands</b>\n"
@@ -372,12 +408,12 @@ def format_help():
    )
  
  
-def format_telegram_settings():
+def format_telegram_settings(premium=False):
    token_configured = bool(get_setting("telegram_token"))
    owner_configured = bool(get_setting("telegram_owner_id"))
    admins_configured = bool(get_setting("telegram_admin_ids"))
    return (
-       "<b>⚙️ Telegram Settings</b>\n"
+       f"{ui_emoji('⚙️', premium)} <b>Telegram Settings</b>\n"
        "━━━━━━━━━━━━━━━━━━\n"
        f"Bot Token: <b>{'Configured' if token_configured else 'Missing'}</b>\n"
        f"Owner ID: <b>{'Configured' if owner_configured else 'Missing'}</b>\n"
@@ -438,17 +474,17 @@ def send_action_result(token, chat_id, user, action, message_id=None):
    if action == "status":
        text = format_status(premium)
    elif action == "history":
-       text = format_history()
+       text = format_history(premium)
    elif action == "domains":
-       text = format_domains()
+       text = format_domains(premium)
    elif action == "scheduler":
        text = format_scheduler(premium)
    elif action == "diagnostics":
        text = format_diagnostics(premium)
    elif action == "help":
-       text = format_help()
+       text = format_help(premium)
    elif action == "telegram_settings":
-       text = format_telegram_settings()
+       text = format_telegram_settings(premium)
    elif action == "refresh":
        if message_id is None:
            return send_dashboard(token, chat_id, user)
