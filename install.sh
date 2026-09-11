@@ -2,8 +2,9 @@
 
 set -Eeuo pipefail
 
-APP_NAME="idontScanner"
-SERVICE_NAME="idontscanner"
+APP="idontScanner"
+VERSION="v2.0.0"
+SERVICE="idontscanner"
 
 APP_DIR="/opt/idontScanner"
 DATA_DIR="/var/lib/idontscanner"
@@ -11,61 +12,62 @@ LOG_DIR="/var/log/idontscanner"
 
 SYSTEM_USER="idontscanner"
 DEFAULT_PORT=8088
-VERSION="v2.0.0"
 
-CYAN=$'\033[36m'
-GREEN=$'\033[32m'
-YELLOW=$'\033[33m'
-RED=$'\033[31m'
-RESET=$'\033[0m'
+
+cyan=$'\033[36m'
+green=$'\033[32m'
+yellow=$'\033[33m'
+red=$'\033[31m'
+reset=$'\033[0m'
 
 
 log() {
     printf '%b%s%b %s\n' \
-        "$CYAN" "[idontScanner]" "$RESET" "$*" >&2
+        "$cyan" "[idontScanner]" "$reset" "$*"
 }
 
 ok() {
     printf '%b%s%b %s\n' \
-        "$GREEN" "[OK]" "$RESET" "$*" >&2
+        "$green" "[OK]" "$reset" "$*"
 }
 
 warn() {
     printf '%b%s%b %s\n' \
-        "$YELLOW" "[WARN]" "$RESET" "$*" >&2
+        "$yellow" "[WARN]" "$reset" "$*"
 }
 
 die() {
     printf '%b%s%b %s\n' \
-        "$RED" "[ERROR]" "$RESET" "$*" >&2
+        "$red" "[ERROR]" "$reset" "$*" >&2
     exit 1
 }
 
 
-trap 'die "Installation failed at line ${LINENO}."' ERR
+trap 'echo "[ERROR] Installation failed at line ${LINENO}." >&2' ERR
 
 
-# ------------------------------------------------------------
-# Root / system checks
-# ------------------------------------------------------------
+# ============================================================
+# Basic checks
+# ============================================================
 
 [[ $EUID -eq 0 ]] ||
     die "Run as root: sudo bash install.sh"
 
-command -v apt-get >/dev/null 2>&1 ||
-    die "Debian/Ubuntu with apt-get is required."
-
 command -v systemctl >/dev/null 2>&1 ||
     die "systemd is required."
 
+command -v apt-get >/dev/null 2>&1 ||
+    die "Debian/Ubuntu with apt-get is required."
 
-# ------------------------------------------------------------
+
+# ============================================================
 # Arguments
-# ------------------------------------------------------------
+# ============================================================
 
 FRESH=0
 NO_UFW=0
-REQUESTED_PORT="${IDONTSCANNER_PORT:-$DEFAULT_PORT}"
+
+PORT="${IDONTSCANNER_PORT:-$DEFAULT_PORT}"
 
 
 while [[ $# -gt 0 ]]; do
@@ -73,35 +75,47 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
 
         --fresh)
+
             FRESH=1
             ;;
 
         --no-ufw)
+
             NO_UFW=1
             ;;
 
         --port)
+
             shift
 
             [[ "${1:-}" =~ ^[0-9]+$ ]] ||
                 die "--port requires a valid number."
 
-            REQUESTED_PORT="$1"
+            PORT="$1"
             ;;
 
         -h|--help)
 
             cat <<EOF
-$APP_NAME $VERSION
+
+$APP $VERSION installer
 
 Usage:
-  sudo bash install.sh [--fresh] [--port PORT] [--no-ufw]
+
+  sudo bash install.sh
+
+  sudo bash install.sh --fresh
+
+  sudo bash install.sh --port 8088
+
+  sudo bash install.sh --no-ufw
+
 
 Options:
 
   --fresh
-      Remove previous idontScanner runtime data
-      and service configuration.
+      Remove the previous idontScanner installation,
+      database and service configuration.
 
   --port PORT
       Preferred HTTP port.
@@ -109,12 +123,14 @@ Options:
 
   --no-ufw
       Do not modify UFW rules.
+
 EOF
 
             exit 0
             ;;
 
         *)
+
             die "Unknown option: $1"
             ;;
 
@@ -125,30 +141,30 @@ EOF
 done
 
 
-[[ "$REQUESTED_PORT" =~ ^[0-9]+$ ]] ||
+[[ "$PORT" =~ ^[0-9]+$ ]] ||
     die "Invalid port."
 
-(( REQUESTED_PORT >= 1024 && REQUESTED_PORT <= 65535 )) ||
+(( PORT >= 1024 && PORT <= 65535 )) ||
     die "Port must be between 1024 and 65535."
 
 
-# ------------------------------------------------------------
+# ============================================================
 # Header
-# ------------------------------------------------------------
+# ============================================================
 
 echo
 
 echo "============================================================"
 echo "                 idontScanner $VERSION"
-echo "        Secure HTTP SNI / TLS Diagnostic Panel"
+echo "              HTTP SNI / TLS Diagnostic Panel"
 echo "============================================================"
 
 echo
 
 
-# ------------------------------------------------------------
-# OS
-# ------------------------------------------------------------
+# ============================================================
+# Operating system
+# ============================================================
 
 if [[ -f /etc/os-release ]]; then
     . /etc/os-release
@@ -158,63 +174,55 @@ fi
 case "${ID:-}" in
 
     ubuntu|debian)
+
         ok "${PRETTY_NAME:-Debian/Ubuntu}"
         ;;
 
     *)
-        die "Supported OS: Debian/Ubuntu."
 
+        die "Supported OS: Debian/Ubuntu."
         ;;
 
 esac
 
 
-export DEBIAN_FRONTEND=noninteractive
-
-
-# ------------------------------------------------------------
+# ============================================================
 # Fresh installation
-# ------------------------------------------------------------
+# ============================================================
 
 if [[ "$FRESH" -eq 1 ]]; then
 
     log "Removing previous idontScanner installation..."
 
-    systemctl stop "$SERVICE_NAME" 2>/dev/null || true
-    systemctl disable "$SERVICE_NAME" 2>/dev/null || true
+
+    systemctl stop "$SERVICE" 2>/dev/null || true
+
+    systemctl disable "$SERVICE" 2>/dev/null || true
+
 
     rm -f \
-        "/etc/systemd/system/${SERVICE_NAME}.service"
+        "/etc/systemd/system/${SERVICE}.service"
+
 
     systemctl daemon-reload
 
+
+    rm -rf "$APP_DIR"
     rm -rf "$DATA_DIR"
     rm -rf "$LOG_DIR"
 
-    # Do not delete unrelated files under /opt/idontScanner.
-    if [[ -d "$APP_DIR" ]]; then
-
-        find "$APP_DIR" \
-            -mindepth 1 \
-            -maxdepth 1 \
-            ! -name ".env" \
-            ! -name ".venv" \
-            ! -name "idontScanner-2.0.0" \
-            -exec rm -rf {} + \
-            2>/dev/null || true
-
-    fi
 
     userdel -r "$SYSTEM_USER" 2>/dev/null || true
 
-    ok "Previous idontScanner installation removed."
+
+    ok "Previous installation removed."
 
 fi
 
 
-# ------------------------------------------------------------
+# ============================================================
 # Required packages
-# ------------------------------------------------------------
+# ============================================================
 
 log "Installing required system packages..."
 
@@ -230,16 +238,15 @@ apt-get install -y \
     sqlite3 \
     curl \
     ca-certificates \
-    openssl \
-    unzip \
     iproute2 \
-    rsync
+    openssl \
+    unzip
 
 
 PYTHON_BIN="$(command -v python3)"
 
 
-PYTHON_VERSION="$(
+PYVER="$(
     "$PYTHON_BIN" -c \
         'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")'
 )"
@@ -248,7 +255,7 @@ PYTHON_VERSION="$(
 if ! "$PYTHON_BIN" -c 'import ensurepip' >/dev/null 2>&1; then
 
     apt-get install -y \
-        "python${PYTHON_VERSION}-venv" \
+        "python${PYVER}-venv" \
         2>/dev/null ||
         apt-get install -y python3-venv
 
@@ -259,51 +266,105 @@ fi
     die "Python venv is unavailable."
 
 
-ok "Python $PYTHON_VERSION ready."
+ok "Python $PYVER ready."
 
 
-# ------------------------------------------------------------
-# Find local project
-# ------------------------------------------------------------
+# ============================================================
+# Port
+# ============================================================
 
-log "Detecting idontScanner project source..."
+log "Selecting an available HTTP port..."
 
 
-SCRIPT_DIR="$(
-    cd "$(dirname "${BASH_SOURCE[0]}")" &&
-    pwd
-)"
+while ss -H -lnt 2>/dev/null |
+    awk '{print $4}' |
+    grep -Eq "(:|\])${PORT}$"; do
 
+    warn "TCP/$PORT is already in use; trying $((PORT + 1))."
+
+
+    PORT=$((PORT + 1))
+
+
+    (( PORT <= 65535 )) ||
+        die "No free TCP port found."
+
+done
+
+
+ok "HTTP port selected: $PORT"
+
+
+# ============================================================
+# Detect local project source
+# ============================================================
 
 SOURCE_DIR=""
 
 
-# Direct project:
+# IMPORTANT:
+#
+# Do NOT directly use:
+#
+# ${BASH_SOURCE[0]}
+#
+# with set -u.
+#
+# When the script is executed through:
+#
+# curl ... | sudo bash
+#
+# there may be no usable BASH_SOURCE entry.
+#
+# We therefore check it safely.
+
+SCRIPT_DIR=""
+
+
+if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
+
+    SCRIPT_DIR="$(
+        cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null &&
+        pwd
+    )" || true
+
+fi
+
+
+# ------------------------------------------------------------
+# Direct project
 #
 # /opt/idontScanner/
 #   install.sh
 #   requirements.txt
 #   app/main.py
+# ------------------------------------------------------------
 
-if [[ \
-    -f "$SCRIPT_DIR/requirements.txt" &&
-    -f "$SCRIPT_DIR/app/main.py"
- ]]; then
+if [[ -n "$SCRIPT_DIR" ]]; then
 
-    SOURCE_DIR="$SCRIPT_DIR"
+    if [[ \
+        -f "$SCRIPT_DIR/requirements.txt" &&
+        -f "$SCRIPT_DIR/app/main.py"
+    ]]; then
+
+        SOURCE_DIR="$SCRIPT_DIR"
+
+    fi
 
 fi
 
 
-# Nested project:
+# ------------------------------------------------------------
+# Nested project
 #
 # /opt/idontScanner/
 #   install.sh
 #   idontScanner-2.0.0/
 #       requirements.txt
 #       app/main.py
+# ------------------------------------------------------------
 
-if [[ -z "$SOURCE_DIR" ]]; then
+if [[ -z "$SOURCE_DIR" && -n "$SCRIPT_DIR" ]]; then
 
     if [[ \
         -f "$SCRIPT_DIR/idontScanner-2.0.0/requirements.txt" &&
@@ -317,9 +378,11 @@ if [[ -z "$SOURCE_DIR" ]]; then
 fi
 
 
-# Search one/two levels deep if necessary.
+# ------------------------------------------------------------
+# Search local directories
+# ------------------------------------------------------------
 
-if [[ -z "$SOURCE_DIR" ]]; then
+if [[ -z "$SOURCE_DIR" && -n "$SCRIPT_DIR" ]]; then
 
     while IFS= read -r candidate; do
 
@@ -329,6 +392,7 @@ if [[ -z "$SOURCE_DIR" ]]; then
         ]]; then
 
             SOURCE_DIR="$candidate"
+
             break
 
         fi
@@ -345,35 +409,37 @@ if [[ -z "$SOURCE_DIR" ]]; then
 fi
 
 
-# ------------------------------------------------------------
-# Remote installation
-# ------------------------------------------------------------
+# ============================================================
+# Remote GitHub installation
+# ============================================================
+
+# If there is no local source, assume the installer was executed
+# through curl | sudo bash and download the project from GitHub.
 
 if [[ -z "$SOURCE_DIR" ]]; then
 
+    log "No local project source detected."
+
+    log "Downloading idontScanner from GitHub..."
+
+
     command -v curl >/dev/null 2>&1 ||
-        die "curl is required for remote installation."
+        die "curl is required."
 
 
-    command -v unzip >/dev/null 2>&1 || {
-
-        log "Installing unzip..."
-
-        apt-get update -y
-        apt-get install -y unzip
-
-    }
+    command -v unzip >/dev/null 2>&1 ||
+        die "unzip is required."
 
 
     TEMP_DIR="$(mktemp -d)"
 
 
-    cleanup() {
+    cleanup_temp() {
         rm -rf "$TEMP_DIR"
     }
 
 
-    trap cleanup EXIT
+    trap cleanup_temp EXIT
 
 
     ARCHIVE_URL="https://github.com/durwinam/idontScanner/archive/refs/heads/main.zip"
@@ -381,21 +447,24 @@ if [[ -z "$SOURCE_DIR" ]]; then
     ARCHIVE_FILE="$TEMP_DIR/idontScanner.zip"
 
 
-    log "Downloading idontScanner from GitHub..."
-
-
     curl \
         -fL \
         --retry 3 \
-        --connect-timeout 10 \
+        --connect-timeout 15 \
+        --max-time 300 \
         "$ARCHIVE_URL" \
         -o "$ARCHIVE_FILE" ||
-        die "Unable to download the idontScanner repository."
+        die "Unable to download idontScanner from GitHub."
+
+
+    [[ -s "$ARCHIVE_FILE" ]] ||
+        die "Downloaded archive is empty."
 
 
     unzip -q \
         "$ARCHIVE_FILE" \
-        -d "$TEMP_DIR/source"
+        -d "$TEMP_DIR/source" ||
+        die "Unable to extract idontScanner archive."
 
 
     SOURCE_DIR="$(
@@ -409,15 +478,15 @@ if [[ -z "$SOURCE_DIR" ]]; then
 
 
     [[ -n "$SOURCE_DIR" ]] ||
-        die "Downloaded repository directory was not found."
+        die "Downloaded project directory was not found."
 
 
     [[ -f "$SOURCE_DIR/requirements.txt" ]] ||
-        die "Downloaded repository is missing requirements.txt."
+        die "Downloaded project is missing requirements.txt."
 
 
     [[ -f "$SOURCE_DIR/app/main.py" ]] ||
-        die "Downloaded repository is missing app/main.py."
+        die "Downloaded project is missing app/main.py."
 
 
     ok "Project files downloaded."
@@ -425,50 +494,30 @@ if [[ -z "$SOURCE_DIR" ]]; then
 fi
 
 
-# ------------------------------------------------------------
-# Validate source
-# ------------------------------------------------------------
+# ============================================================
+# Final source validation
+# ============================================================
 
 [[ -n "$SOURCE_DIR" ]] ||
     die "Unable to locate a valid idontScanner project source."
 
 
 [[ -f "$SOURCE_DIR/requirements.txt" ]] ||
-    die "requirements.txt was not found in: $SOURCE_DIR"
+    die "requirements.txt was not found."
 
 
 [[ -f "$SOURCE_DIR/app/main.py" ]] ||
-    die "app/main.py was not found in: $SOURCE_DIR"
+    die "app/main.py was not found."
 
 
 log "Project source detected:"
+
 log "$SOURCE_DIR"
 
 
-# ------------------------------------------------------------
-# Project version
-# ------------------------------------------------------------
-
-if [[ -f "$SOURCE_DIR/VERSION" ]]; then
-
-    SOURCE_VERSION="$(
-        tr -d '[:space:]' < "$SOURCE_DIR/VERSION"
-    )"
-
-
-    if [[ -n "$SOURCE_VERSION" ]]; then
-        VERSION="$SOURCE_VERSION"
-    fi
-
-fi
-
-
-ok "Project version: $VERSION"
-
-
-# ------------------------------------------------------------
-# Service user
-# ------------------------------------------------------------
+# ============================================================
+# Service account
+# ============================================================
 
 log "Creating dedicated service account..."
 
@@ -484,17 +533,21 @@ if ! id "$SYSTEM_USER" >/dev/null 2>&1; then
 fi
 
 
-mkdir -p "$APP_DIR"
-mkdir -p "$DATA_DIR"
-mkdir -p "$LOG_DIR"
+mkdir -p \
+    "$APP_DIR" \
+    "$DATA_DIR" \
+    "$LOG_DIR"
 
 
-# ------------------------------------------------------------
+# ============================================================
 # Copy project
-# ------------------------------------------------------------
+# ============================================================
 
 log "Installing project files..."
 
+
+# Keep existing runtime configuration if present.
+# Do not use --delete-excluded.
 
 rsync \
     -a \
@@ -529,9 +582,9 @@ find "$APP_DIR" \
     die "Installed project is missing app/main.py."
 
 
-# ------------------------------------------------------------
+# ============================================================
 # Python virtual environment
-# ------------------------------------------------------------
+# ============================================================
 
 log "Creating isolated Python environment..."
 
@@ -561,9 +614,9 @@ fi
     -r "$APP_DIR/requirements.txt"
 
 
-# ------------------------------------------------------------
-# Validate Python
-# ------------------------------------------------------------
+# ============================================================
+# Python validation
+# ============================================================
 
 log "Validating Python application..."
 
@@ -578,31 +631,31 @@ log "Validating Python application..."
 ok "Python source validation passed."
 
 
-# ------------------------------------------------------------
+# ============================================================
 # Admin credentials
-#
-# IMPORTANT:
-#
-# With:
+# ============================================================
+
+# When executed as:
 #
 # curl ... | sudo bash
 #
-# stdin belongs to the script stream.
+# stdin is occupied by the downloaded shell script.
 #
-# Therefore we explicitly open /dev/tty as FD 3.
-# ------------------------------------------------------------
+# FD 3 is therefore connected directly to /dev/tty.
 
 if [[ ! -r /dev/tty ]]; then
+
     die "Interactive terminal (/dev/tty) is required for admin credentials."
+
 fi
 
 
 exec 3</dev/tty
 
 
-# ------------------------------------------------------------
+# ============================================================
 # Username
-# ------------------------------------------------------------
+# ============================================================
 
 while true; do
 
@@ -619,7 +672,9 @@ while true; do
 
 
     if [[ "$ADMIN_USER" =~ ^[A-Za-z0-9_.-]{3,32}$ ]]; then
+
         break
+
     fi
 
 
@@ -628,13 +683,15 @@ while true; do
 done
 
 
-# ------------------------------------------------------------
+# ============================================================
 # Password
-# ------------------------------------------------------------
+# ============================================================
 
 while true; do
 
-    printf "Admin password (minimum 12 characters): " >&2
+    printf \
+        "Admin password (minimum 12 characters): " \
+        >&2
 
 
     IFS= read \
@@ -658,7 +715,9 @@ while true; do
     fi
 
 
-    printf "Confirm password: " >&2
+    printf \
+        "Confirm password: " \
+        >&2
 
 
     IFS= read \
@@ -693,9 +752,9 @@ done
 exec 3<&-
 
 
-# ------------------------------------------------------------
-# Secret
-# ------------------------------------------------------------
+# ============================================================
+# Application secret
+# ============================================================
 
 SECRET="$(
     "$APP_DIR/.venv/bin/python" - <<'PY'
@@ -706,16 +765,75 @@ PY
 )"
 
 
-# ------------------------------------------------------------
+# ============================================================
+# Password hash
+# ============================================================
+
+PASSWORD_HASH="$(
+    "$APP_DIR/.venv/bin/python" - "$ADMIN_PASS" <<'PY'
+
+import hashlib
+import secrets
+import sys
+
+
+password = sys.argv[1].encode("utf-8")
+
+salt = secrets.token_bytes(16)
+
+last_error = None
+
+
+for n in (16384, 8192, 4096):
+
+    try:
+
+        digest = hashlib.scrypt(
+            password,
+            salt=salt,
+            n=n,
+            r=8,
+            p=1,
+            dklen=64,
+        )
+
+
+        print(
+            f"scrypt${n}${salt.hex()}${digest.hex()}"
+        )
+
+
+        break
+
+
+    except ValueError as exc:
+
+        last_error = exc
+
+else:
+
+    raise SystemExit(
+        f"Unable to hash password: {last_error}"
+    )
+
+PY
+)"
+
+
+unset ADMIN_PASS
+unset ADMIN_PASS2
+
+
+# ============================================================
 # Environment
-# ------------------------------------------------------------
+# ============================================================
 
 cat > "$APP_DIR/.env" <<EOF
 IDONTSCANNER_VERSION=$VERSION
 IDONTSCANNER_SECRET=$SECRET
 IDONTSCANNER_HOST=0.0.0.0
-IDONTSCANNER_PORT=$REQUESTED_PORT
-IDONTSCANNER_DATA_DIR=$DATA_DIR
+IDONTSCANNER_PORT=$PORT
+IDONTSCANNER_TIMEOUT=4.0
 IDONTSCANNER_DB_PATH=$DATA_DIR/idontscanner.db
 EOF
 
@@ -723,53 +841,94 @@ EOF
 chmod 600 "$APP_DIR/.env"
 
 
-# ------------------------------------------------------------
-# Database + authentication
-# ------------------------------------------------------------
+# ============================================================
+# Database
+# ============================================================
 
 log "Initializing database and provisioning admin credentials..."
 
 
-cd "$APP_DIR"
+"$APP_DIR/.venv/bin/python" \
+    - "$DATA_DIR/idontscanner.db" "$ADMIN_USER" "$PASSWORD_HASH" <<'PY'
+
+import sqlite3
+import sys
 
 
-ADMIN_USER="$ADMIN_USER" \
-ADMIN_PASS="$ADMIN_PASS" \
-PYTHONPATH="$APP_DIR" \
-"$APP_DIR/.venv/bin/python" - <<'PY'
-
-import os
-
-from app.auth import hash_password
-from app.database import init_db, set_setting
+db, user, password_hash = sys.argv[1:]
 
 
-init_db()
+connection = sqlite3.connect(db)
 
 
-set_setting(
-    "username",
-    os.environ["ADMIN_USER"],
+connection.executescript(
+    """
+    CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS domains (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        label TEXT NOT NULL,
+        domain TEXT UNIQUE NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        is_default INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS scans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        started_at INTEGER NOT NULL,
+        duration_ms REAL NOT NULL,
+        total INTEGER NOT NULL,
+        ok INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS results (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scan_id INTEGER NOT NULL,
+        domain_id INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        latency_ms REAL,
+        tls_version TEXT,
+        cert_subject TEXT,
+        error TEXT,
+        FOREIGN KEY(scan_id) REFERENCES scans(id),
+        FOREIGN KEY(domain_id) REFERENCES domains(id)
+    );
+    """
 )
 
 
-set_setting(
-    "password",
-    hash_password(
-        os.environ["ADMIN_PASS"]
-    ),
+connection.execute(
+    """
+    INSERT OR REPLACE INTO settings(key, value)
+    VALUES('username', ?)
+    """,
+    (user,),
 )
+
+
+connection.execute(
+    """
+    INSERT OR REPLACE INTO settings(key, value)
+    VALUES('password', ?)
+    """,
+    (password_hash,),
+)
+
+
+connection.commit()
+
+connection.close()
 
 PY
 
 
-unset ADMIN_PASS
-unset ADMIN_PASS2
-
-
-# ------------------------------------------------------------
+# ============================================================
 # Permissions
-# ------------------------------------------------------------
+# ============================================================
 
 chown -R \
     "$SYSTEM_USER:$SYSTEM_USER" \
@@ -787,58 +946,16 @@ chmod 750 \
 chmod 600 "$APP_DIR/.env"
 
 
-# ------------------------------------------------------------
-# Final available port
-# ------------------------------------------------------------
-
-PORT="$REQUESTED_PORT"
-
-
-log "Selecting an available HTTP port..."
-
-
-while ss -H -lnt 2>/dev/null |
-    awk '{print $4}' |
-    grep -Eq "(:|\])${PORT}$"; do
-
-    warn "TCP/$PORT is already in use; trying $((PORT + 1))."
-
-
-    PORT=$((PORT + 1))
-
-
-    (( PORT <= 65535 )) ||
-        die "No free TCP port found."
-
-done
-
-
-ok "HTTP port selected: $PORT"
-
-
-sed -i \
-    "s/^IDONTSCANNER_PORT=.*/IDONTSCANNER_PORT=$PORT/" \
-    "$APP_DIR/.env"
-
-
-chown \
-    "$SYSTEM_USER:$SYSTEM_USER" \
-    "$APP_DIR/.env"
-
-
-chmod 600 "$APP_DIR/.env"
-
-
-# ------------------------------------------------------------
-# Systemd
-# ------------------------------------------------------------
+# ============================================================
+# Systemd service
+# ============================================================
 
 log "Installing systemd service..."
 
 
-cat > "/etc/systemd/system/${SERVICE_NAME}.service" <<EOF
+cat > "/etc/systemd/system/${SERVICE}.service" <<EOF
 [Unit]
-Description=idontScanner HTTP Diagnostic Panel
+Description=idontScanner Web Panel
 After=network-online.target
 Wants=network-online.target
 
@@ -851,21 +968,22 @@ Group=$SYSTEM_USER
 WorkingDirectory=$APP_DIR
 
 EnvironmentFile=$APP_DIR/.env
-Environment=PYTHONPATH=$APP_DIR
 
 ExecStart=$APP_DIR/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
 
 Restart=on-failure
 RestartSec=3
-TimeoutStartSec=30
 
 NoNewPrivileges=true
 PrivateTmp=true
 
-ProtectSystem=full
+ProtectSystem=strict
 ProtectHome=true
 
 ReadWritePaths=$APP_DIR $DATA_DIR $LOG_DIR
+
+RestrictSUIDSGID=true
+LockPersonality=true
 
 [Install]
 WantedBy=multi-user.target
@@ -873,12 +991,12 @@ EOF
 
 
 chmod 644 \
-    "/etc/systemd/system/${SERVICE_NAME}.service"
+    "/etc/systemd/system/${SERVICE}.service"
 
 
-# ------------------------------------------------------------
+# ============================================================
 # CLI
-# ------------------------------------------------------------
+# ============================================================
 
 if [[ -f "$APP_DIR/idontscanner-cli" ]]; then
 
@@ -894,27 +1012,51 @@ if [[ -f "$APP_DIR/idontscanner-cli" ]]; then
 fi
 
 
-# ------------------------------------------------------------
+# ============================================================
 # Start service
-# ------------------------------------------------------------
+# ============================================================
 
 systemctl daemon-reload
 
 
 systemctl enable \
-    "$SERVICE_NAME" \
+    "$SERVICE" \
     >/dev/null
 
 
 systemctl restart \
-    "$SERVICE_NAME"
+    "$SERVICE"
 
 
-# ------------------------------------------------------------
-# Health check
-# ------------------------------------------------------------
+sleep 2
 
-log "Waiting for idontScanner to become ready..."
+
+# ============================================================
+# Service check
+# ============================================================
+
+if ! systemctl is-active --quiet "$SERVICE"; then
+
+    journalctl \
+        -u "$SERVICE" \
+        -n 100 \
+        --no-pager \
+        || true
+
+
+    die "Service failed to start."
+
+fi
+
+
+ok "idontScanner service is running."
+
+
+# ============================================================
+# HTTP health check
+# ============================================================
+
+log "Checking HTTP service..."
 
 
 HEALTH_OK=0
@@ -922,14 +1064,12 @@ HEALTH_OK=0
 
 for _ in $(seq 1 30); do
 
-    if \
-        systemctl is-active --quiet "$SERVICE_NAME" &&
-        curl \
-            -fsS \
-            --connect-timeout 1 \
-            --max-time 3 \
-            "http://127.0.0.1:${PORT}/login/" \
-            >/dev/null 2>&1
+    if curl \
+        -fsS \
+        --connect-timeout 1 \
+        --max-time 3 \
+        "http://127.0.0.1:${PORT}/login/" \
+        >/dev/null 2>&1
     then
 
         HEALTH_OK=1
@@ -947,24 +1087,24 @@ done
 if [[ "$HEALTH_OK" -ne 1 ]]; then
 
     journalctl \
-        -u "$SERVICE_NAME" \
+        -u "$SERVICE" \
         -n 100 \
         --no-pager \
         || true
 
 
     die \
-        "HTTP health check failed on 127.0.0.1:${PORT}. Service did not become ready within 30 seconds."
+        "HTTP health check failed on 127.0.0.1:${PORT}."
 
 fi
 
 
-ok "idontScanner service is running."
+ok "HTTP health check passed."
 
 
-# ------------------------------------------------------------
+# ============================================================
 # UFW
-# ------------------------------------------------------------
+# ============================================================
 
 if \
     [[ "$NO_UFW" -eq 0 ]] &&
@@ -983,47 +1123,42 @@ then
 fi
 
 
-# ------------------------------------------------------------
-# Server information
-# ------------------------------------------------------------
+# ============================================================
+# Server IP
+# ============================================================
 
-SERVER_IP="$(
+IP="$(
     hostname -I 2>/dev/null |
     awk '{print $1}'
 )"
 
 
-SERVER_IP="${SERVER_IP:-127.0.0.1}"
+IP="${IP:-127.0.0.1}"
 
 
-# ------------------------------------------------------------
-# Done
-# ------------------------------------------------------------
+# ============================================================
+# Installation complete
+# ============================================================
 
 echo
 
 echo "============================================================"
-echo "                  INSTALLATION COMPLETE"
+echo "              INSTALLATION COMPLETE"
 echo "============================================================"
 
 echo
-echo " Version       : $VERSION"
-echo " Protocol      : HTTP"
-echo " Service       : $SERVICE_NAME"
-echo " Status        : RUNNING"
-echo " Port          : $PORT/tcp"
-echo " Panel         : http://${SERVER_IP}:${PORT}/"
-echo " Login         : http://${SERVER_IP}:${PORT}/login/"
-echo " Username      : $ADMIN_USER"
-echo " Password      : [hidden]"
+echo " Version   : $VERSION"
+echo " Status    : RUNNING"
+echo " Protocol  : HTTP"
+echo " Port      : $PORT/tcp"
+echo " Panel     : http://${IP}:${PORT}/"
+echo " Login     : http://${IP}:${PORT}/login/"
+echo " Username  : $ADMIN_USER"
+echo " Password  : [hidden]"
 
 echo
-echo " Scheduler     : OFF by default"
-echo " Telegram      : Optional / Settings"
-
-echo
-echo " Service       : systemctl status $SERVICE_NAME"
-echo " Logs          : journalctl -u $SERVICE_NAME -f"
+echo " Service   : systemctl status $SERVICE"
+echo " Logs      : journalctl -u $SERVICE -f"
 
 echo
 echo "============================================================"
