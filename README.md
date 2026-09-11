@@ -227,7 +227,9 @@ Telegram اختیاری است و با **Polling** کار می‌کند؛ بنا
 /scan
 /status
 ```
-
+<p align="center">
+  <img src="static/logo/IMG_0399.jpeg" alt="idontScanner" width="420">
+</p>
 ---
 
 ## ⏱ Scheduler
@@ -315,6 +317,9 @@ sudo bash install.sh --fresh
 
 ⚠️ این حالت دیتابیس، History، Domainها، Telegram، Scheduler و حساب کاربری قبلی را حذف می‌کند.
 
+<p align="center">
+  <img src="static/logo/IMG_0398.jpeg" alt="idontScanner" width="420">
+</p>
 ---
 
 ## 📌 GitHub
