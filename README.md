@@ -14,7 +14,7 @@
 
 ## 🚀 نصب سریع
 
-اگر پروژه روی GitHub در شاخه `main` قرار گرفته باشد، سریع‌ترین روش نصب:
+ روی GitHub سریع‌ترین روش نصب:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.sh | sudo bash
@@ -331,6 +331,6 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 
 ## 📄 License
 
-MIT License — Copyright © 2026 **Darwin**
+MIT License — Copyright © 2026 **durwinam**
 
 </div>
