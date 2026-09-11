@@ -1,6 +1,6 @@
 **🇮🇷 فارسی | 🇬🇧 English | 🇷🇺 Русский | 🇨🇳 中文**
 
-[فارسی](README.md) · [English](README.en) · [Русский](README.ru) · [中文](README.ch)
+[فارسی](README.md) · [English](README.en.md) · [Русский](README.ru.md) · [中文](README.ch.md)
 
 ---
 
