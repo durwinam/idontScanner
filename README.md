@@ -48,6 +48,10 @@ sudo bash install.sh --fresh
 
 ---
 
+<p align="center">
+  <img src="static/logo/IMG_0397.jpeg" alt="idontScanner Logo" width="420">
+</p>
+
 ## 🔄 Update بدون نصب مجدد
 
 بعد از نصب، دیگر لازم نیست برای هر نسخه دوباره Installer را اجرا کنید.
