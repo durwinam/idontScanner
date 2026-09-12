@@ -100,7 +100,19 @@ document.querySelector("#scanBtn")?.addEventListener("click", async (event) => {
     const state = document.querySelector("#scanState");
 
     button.disabled = true;
-    state.textContent = "Scanning real TLS connections…";
+    const customEnabled = document.querySelector("#customTargetToggle")?.getAttribute("aria-pressed") === "true";
+    const customTarget = document.querySelector("#customTargetIp")?.value.trim() || "";
+
+    if (customEnabled && !customTarget) {
+        state.textContent = "Enter a custom target IP first.";
+        button.disabled = false;
+        document.querySelector("#customTargetIp")?.focus();
+        return;
+    }
+
+    state.textContent = customEnabled
+        ? "Scanning all enabled targets via the custom IP…"
+        : "Scanning real TLS connections…";
 
     document.querySelectorAll(".result-row").forEach((row) => {
         row.querySelector(".status").className = "status testing";
@@ -110,8 +122,6 @@ document.querySelector("#scanBtn")?.addEventListener("click", async (event) => {
     });
 
     try {
-        const customEnabled = document.querySelector("#customTargetToggle")?.getAttribute("aria-pressed") === "true";
-        const customTarget = document.querySelector("#customTargetIp")?.value.trim() || "";
         const data = await postJson(`${ID.base}/api/scan`, {
             csrf: ID.csrf,
             connect_target: customEnabled ? customTarget : "",

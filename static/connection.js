@@ -69,6 +69,31 @@ function renderServices(services) {
     `;
 }
 
+function renderConnectionQuality(quality) {
+    if (!quality || quality.status === "unavailable") {
+        return;
+    }
+
+    const values = {
+        qualityDownload: quality.download_mbps,
+        qualityUpload: quality.upload_mbps,
+        qualityLatency: quality.latency_ms,
+        qualityJitter: quality.jitter_ms,
+    };
+
+    Object.entries(values).forEach(([id, value]) => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = value ?? "—";
+    });
+
+    const note = document.getElementById("qualityNote");
+    if (note) {
+        note.textContent = quality.error
+            ? quality.error
+            : `${quality.provider} · ${quality.samples} samples · ${quality.duration_ms} ms`;
+    }
+}
+
 function renderConnection(data) {
     const config = data.config || {};
     const fields = [
@@ -142,6 +167,7 @@ testButton?.addEventListener("click", async () => {
             throw new Error(data.error || "Connection test failed");
         }
 
+        renderConnectionQuality(data.connection_quality);
         output.innerHTML = renderConnection(data);
     } catch (error) {
         output.textContent = error.message;
