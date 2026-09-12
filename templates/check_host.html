@@ -19,6 +19,10 @@
     <input id="checkHostTarget" autocomplete="off" spellcheck="false" placeholder="example.com or 1.1.1.1">
     <button class="primary" id="checkHostRun" type="button">{% include 'icons/radar.svg' %}<span>START CHECK</span></button>
   </div>
+  <div class="check-host-node-groups" role="tablist" aria-label="Node location">
+    <button class="node-group active" data-group="global" type="button">{% include 'icons/globe.svg' %} Global</button>
+    <button class="node-group" data-group="iran" type="button">🇮🇷 Iran · 6 Nodes</button>
+  </div>
   <div class="check-host-modes" role="tablist">
     <button class="check-mode active" data-type="info" type="button">{% include 'icons/info.svg' %} Info</button>
     <button class="check-mode" data-type="ping" type="button">{% include 'icons/activity.svg' %} Ping</button>

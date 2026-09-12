@@ -28,7 +28,7 @@
       <div class="mini-icon">{% include 'icons/target.svg' %}</div>
       <div>
         <b>Custom Ping Target</b>
-        <small>Use a specific IP for TCP/TLS latency while keeping the domain as SNI.</small>
+        <small>Use a raw IP for ICMP ping. DNS, TCP, TLS, and certificates are skipped.</small>
       </div>
     </div>
     <button type="button" class="premium-toggle" id="customTargetToggle" aria-pressed="false">
@@ -38,7 +38,7 @@
   </div>
   <div class="custom-target-fields hidden" id="customTargetFields">
     <label>Target IP<input id="customTargetIp" inputmode="decimal" placeholder="203.0.113.10" autocomplete="off"></label>
-    <span class="target-hint">Only the connection destination changes. SNI remains the scanned domain.</span>
+    <span class="target-hint">Custom IP is used as a raw ping target. The 65 domain rows are retained for the scan view.</span>
   </div>
 </section>
 
