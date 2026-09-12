@@ -353,18 +353,11 @@ async def run_scan(connect_target: str | None = None):
     start_perf = time.perf_counter()
     semaphore = asyncio.Semaphore(8)
 
-    custom_ping_result = None
-    if connect_target:
-        custom_ping_result = await raw_ping_probe(connect_target)
-
     async def scan_domain(domain):
         async with semaphore:
-            if custom_ping_result is not None:
-                return domain, {
-                    **custom_ping_result,
-                    "mode": "raw_ping",
-                }
-
+            # Domain Scanner behavior is intentionally unchanged.
+            # Custom IP is an independent raw target and must never replace
+            # the resolved endpoint of any domain in the 65-target scan.
             result = await tls_probe(domain["domain"])
             return domain, result
 
@@ -495,12 +488,22 @@ async def run_scan(connect_target: str | None = None):
             score += 5
         score = max(0, min(100, score))
 
+    custom_target = None
+    if connect_target:
+        custom_result = await raw_ping_probe(connect_target)
+        custom_target = {
+            "target": connect_target,
+            "mode": "raw_ping",
+            **custom_result,
+        }
+
     return {
         "scan_id": scan_id,
         "started_at": started,
         "duration_ms": round(duration, 1),
-        "target": connect_target or "VPS-resolved endpoint",
-        "mode": "raw_ping" if connect_target else "tls",
+        "target": "VPS-resolved endpoints",
+        "mode": "tls",
+        "custom_target": custom_target,
         "score": score,
         "score_label": (
             "EXCELLENT" if score >= 90
