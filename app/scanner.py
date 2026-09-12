@@ -263,8 +263,74 @@ def _raw_ping_sync(target: str):
     }
 
 
+def _tcp_fallback_sync(target: str, port: int = 443):
+    """Check basic reachability when ICMP does not receive a reply.
+
+    This is deliberately a single service-port probe, not a port scan. It
+    answers a narrow diagnostic question: can the target accept a TCP
+    connection when ICMP is unavailable or filtered?
+    """
+    address = ipaddress.ip_address(target)
+    family = socket.AF_INET6 if address.version == 6 else socket.AF_INET
+    started = time.perf_counter()
+    sock = socket.socket(family, socket.SOCK_STREAM)
+    sock.settimeout(3.0)
+
+    try:
+        if family == socket.AF_INET6:
+            sock.connect((target, port, 0, 0))
+        else:
+            sock.connect((target, port))
+
+        latency_ms = (time.perf_counter() - started) * 1000
+        return {
+            "status": "ok",
+            "latency_ms": round(latency_ms, 1),
+            "tcp_fallback_ms": round(latency_ms, 1),
+            "fallback_port": port,
+            "error": None,
+        }
+    except socket.timeout:
+        return {
+            "status": "timeout",
+            "latency_ms": None,
+            "tcp_fallback_ms": None,
+            "fallback_port": port,
+            "error": f"TCP port {port} timed out.",
+        }
+    except OSError as exc:
+        return {
+            "status": "failed",
+            "latency_ms": None,
+            "tcp_fallback_ms": None,
+            "fallback_port": port,
+            "error": str(exc)[:180],
+        }
+    finally:
+        sock.close()
+
+
 async def raw_ping_probe(target: str):
-    return await asyncio.to_thread(_raw_ping_sync, target)
+    result = await asyncio.to_thread(_raw_ping_sync, target)
+
+    if result.get("status") in {"timeout", "failed"} and result.get("packet_loss", 100) >= 100:
+        fallback = await asyncio.to_thread(_tcp_fallback_sync, target, 443)
+        result["icmp_status"] = "unavailable"
+        result["tcp_fallback"] = fallback
+
+        if fallback.get("status") == "ok":
+            result["status"] = "ok"
+            result["latency_ms"] = fallback["latency_ms"]
+            result["reachability"] = "tcp_fallback"
+            result["error"] = None
+        else:
+            result["reachability"] = "unreachable"
+
+    elif result.get("status") == "ok":
+        result["icmp_status"] = "ok"
+        result["reachability"] = "icmp"
+
+    return result
 
 
 async def tls_probe(domain: str, connect_target: str | None = None):
