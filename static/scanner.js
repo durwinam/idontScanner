@@ -122,7 +122,7 @@ document.querySelector("#scanBtn")?.addEventListener("click", async (event) => {
     }
 
     state.textContent = customEnabled
-        ? "Running ICMP ping with TCP 443 fallback against the custom IP…"
+        ? "Scanning 65 domains normally and checking the custom IP separately…"
         : "Scanning real TLS connections…";
 
     document.querySelectorAll(".result-row").forEach((row) => {
@@ -139,13 +139,42 @@ document.querySelector("#scanBtn")?.addEventListener("click", async (event) => {
         });
 
         data.results.forEach((result) => {
-            const row = [...document.querySelectorAll(".result-row")]
+            const row = [...document.querySelectorAll(".result-row[data-domain]")]
                 .find((item) => item.dataset.domain === result.domain);
 
             if (row) {
                 setResultRow(row, result);
             }
         });
+
+        const customRow = document.querySelector("#customIpResultRow");
+        if (customRow) {
+            if (data.custom_target) {
+                const custom = data.custom_target;
+                customRow.classList.remove("hidden");
+                customRow.dataset.result = JSON.stringify(custom);
+                document.querySelector("#customIpResultTarget").textContent = custom.target;
+
+                const status = document.querySelector("#customIpStatus");
+                status.className = `status ${custom.status}`;
+                status.textContent = custom.reachability === "tcp_fallback"
+                    ? "TCP 443 REACHABLE"
+                    : custom.status === "ok"
+                        ? "PING OK"
+                        : custom.status === "timeout"
+                            ? "ICMP TIMEOUT"
+                            : "PING FAILED";
+
+                document.querySelector("#customIpLatency").textContent =
+                    custom.latency_ms != null ? `${custom.latency_ms} ms` : "—";
+                document.querySelector("#customIpMeta").textContent =
+                    custom.reachability === "tcp_fallback"
+                        ? "ICMP BLOCKED · TCP 443"
+                        : "RAW ICMP";
+            } else {
+                customRow.classList.add("hidden");
+            }
+        }
 
         state.textContent = `Completed · ${data.ok}/${data.total} online · average ${data.average_ms ?? "N/A"} ms · score ${data.score}/100`;
         const scoreBox = document.querySelector("#scanScore");
@@ -161,6 +190,13 @@ document.querySelector("#search")?.addEventListener("input", (event) => {
     const query = event.target.value.toLowerCase();
 
     document.querySelectorAll(".result-row").forEach((row) => {
+        if (row.id === "customIpResultRow") {
+            const target = document.querySelector("#customIpResultTarget")?.textContent.toLowerCase() || "";
+            row.style.display = !row.classList.contains("hidden") &&
+                ("custom ip".includes(query) || target.includes(query)) ? "" : "none";
+            return;
+        }
+
         const domain = row.dataset.domain?.toLowerCase() || "";
         row.style.display = domain.includes(query) ? "" : "none";
     });
@@ -182,7 +218,9 @@ results?.addEventListener("click", (event) => {
         data = {};
     }
 
-    data.domain = row.dataset.domain;
+    data.domain = row.dataset.domain === "__custom_ip__"
+        ? `Custom IP · ${data.target || "Target"}`
+        : row.dataset.domain;
     detailContent.innerHTML = Object.keys(data).length > 1
         ? renderDetails(data)
         : '<div class="empty">Run a scan first to see observed connection details.</div>';
