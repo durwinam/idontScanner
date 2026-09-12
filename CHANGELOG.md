@@ -1,3 +1,19 @@
+# v3.0.5
+
+## Telegram UX & diagnostics
+- Added a richer Telegram dashboard for Domain Scanner, Check Host, Smart Connection, VPS Speed, Server Status, History, Network Diagnostics, Scheduler, and Settings.
+- Added Premium custom emoji mappings supplied by the project owner, including the Lion and Sun Iran marker with a 🦁 fallback.
+- Added colored Telegram inline buttons throughout the bot.
+- Added Telegram Check Host flow with Global and six Iran nodes.
+- Added Smart Connection metrics for Download, Upload, Latency, and Jitter.
+- Added Telegram VPS network-quality testing with bounded measurements.
+- Added per-user target input flow for Check Host without exposing credentials.
+
+## Web panel
+- Preserved the existing 65-domain scanner behavior.
+- Custom IP remains an independent raw target and does not override domain resolution, TLS, or SNI scanning.
+- Versioning and installer paths are aligned on v3.0.5.
+
 # v3.0.4
 
 - Fixed Custom IP behavior: the 65 domain targets always use their normal VPS-resolved DNS/TLS scan path.
