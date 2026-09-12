@@ -13,7 +13,7 @@
     <div class="side-head">
       <a class="brand" href="{{ base }}/dashboard/">
         <span class="logo">{% include 'icons/radar.svg' %}</span>
-        <span><b>idontScanner</b><small>v2.0.0 · Diagnostics</small></span>
+        <span><b>idontScanner</b><small>v2.1.0 · Diagnostics</small></span>
       </a>
       <button class="menu-close" id="menuClose" aria-label="Close menu">{% include 'icons/x.svg' %}</button>
     </div>
@@ -27,6 +27,7 @@
         <a class="nav-sub" href="{{ base }}/scanner/?mode=domain">{% include 'icons/globe.svg' %} Domain Scanner</a>
         <a class="nav-sub" href="{{ base }}/scanner/?mode=cdn">{% include 'icons/cloud.svg' %} CDN Diagnostics</a>
         <a class="nav-sub" href="{{ base }}/connection/">{% include 'icons/target.svg' %} Connection Tester</a>
+        <a class="nav-sub" href="{{ base }}/speed-test/">{% include 'icons/activity.svg' %} VPS Speed Test</a>
       </div>
       <a class="nav-item {% if active=='history' %}active{% endif %}" href="{{ base }}/history/">{% include 'icons/history.svg' %}<span>History</span></a>
       <a class="nav-item {% if active=='domains' %}active{% endif %}" href="{{ base }}/domains/">{% include 'icons/globe.svg' %}<span>Domains</span></a>

@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}VPS Speed Test — idontScanner{% endblock %}
+{% block crumb %}VPS Speed Test{% endblock %}
+{% block content %}
+<section class="page-head speed-head">
+  <div><span class="eyebrow">VPS NETWORK PERFORMANCE</span><h1>VPS Speed Test</h1><p>Measure direct VPS network performance with a controlled external test endpoint.</p></div>
+</section>
+<section class="speed-test-shell glass" id="speedTestShell">
+  <div class="speed-orbit" id="speedOrbit"><span></span><i></i><b></b></div>
+  <div class="speed-state" id="speedState">Ready to test</div>
+  <button class="speed-start" id="speedStart" type="button">{% include 'icons/activity.svg' %}<span>START TEST</span></button>
+  <div class="speed-progress"><span id="speedProgress"></span></div>
+  <div class="speed-stage" id="speedStage">The test runs only when you start it.</div>
+</section>
+<section class="speed-results hidden" id="speedResults">
+  <article class="speed-result-card glass"><span>DOWNLOAD</span><strong id="speedDownload">—</strong><small>Mbps</small></article>
+  <article class="speed-result-card glass"><span>UPLOAD</span><strong id="speedUpload">—</strong><small>Mbps</small></article>
+  <article class="speed-result-card glass"><span>LATENCY</span><strong id="speedLatency">—</strong><small>ms</small></article>
+  <article class="speed-result-card glass"><span>JITTER</span><strong id="speedJitter">—</strong><small>ms</small></article>
+</section>
+<section class="panel glass speed-note"><div class="panel-head"><div><h2>Test details</h2><span class="muted">A small, bounded transfer is used to avoid turning routine diagnostics into an unlimited bandwidth test.</span></div></div><div class="detail-grid"><div class="detail-item"><span>Endpoint</span><b id="speedProvider">—</b></div><div class="detail-item"><span>Samples</span><b id="speedSamples">—</b></div><div class="detail-item"><span>Total duration</span><b id="speedDuration">—</b></div></div></section>
+{% endblock %}
+{% block scripts %}<script src="{{ base }}/static/speed_test.js"></script>{% endblock %}

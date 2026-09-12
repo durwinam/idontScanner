@@ -17,12 +17,33 @@
 </section>
 
 <div class="scanner-tabs">
-  <a data-mode="domain" href="?mode=domain">🌐 Domain Scanner</a>
-  <a data-mode="sni" href="?mode=sni">🎯 SNI / TLS Check</a>
-  <a data-mode="cdn" href="?mode=cdn">☁️ CDN Diagnostics</a>
+  <a data-mode="domain" href="?mode=domain">{% include 'icons/globe.svg' %} Domain Scanner</a>
+  <a data-mode="sni" href="?mode=sni">{% include 'icons/target.svg' %} SNI / TLS Check</a>
+  <a data-mode="cdn" href="?mode=cdn">{% include 'icons/cloud.svg' %} CDN Diagnostics</a>
 </div>
 
+<section id="domainTargetCard" class="panel glass scanner-target-card">
+  <div class="target-toggle-row">
+    <div class="target-toggle-copy">
+      <div class="mini-icon">{% include 'icons/target.svg' %}</div>
+      <div>
+        <b>Custom Ping Target</b>
+        <small>Use a specific IP for TCP/TLS latency while keeping the domain as SNI.</small>
+      </div>
+    </div>
+    <button type="button" class="premium-toggle" id="customTargetToggle" aria-pressed="false">
+      <span class="toggle-orb"></span>
+      <span class="toggle-label">VPS MODE</span>
+    </button>
+  </div>
+  <div class="custom-target-fields hidden" id="customTargetFields">
+    <label>Target IP<input id="customTargetIp" inputmode="decimal" placeholder="203.0.113.10" autocomplete="off"></label>
+    <span class="target-hint">Only the connection destination changes. SNI remains the scanned domain.</span>
+  </div>
+</section>
+
 <section id="modeDomain" class="mode-card glass">
+  <div class="scan-score glass" id="scanScore"><strong>—</strong><span>Run a scan</span></div>
   <div class="panel-head">
     <div>
       <h2>Domain / TLS scanner</h2>
