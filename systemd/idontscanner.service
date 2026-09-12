@@ -1,5 +1,5 @@
 [Unit]
-Description=idontScanner HTTP Diagnostic Panel
+Description=idontScanner Web Panel
 After=network-online.target
 Wants=network-online.target
 
@@ -10,15 +10,17 @@ Group=idontscanner
 WorkingDirectory=/opt/idontScanner
 EnvironmentFile=/opt/idontScanner/.env
 Environment=PYTHONPATH=/opt/idontScanner
-ExecStart=/opt/idontScanner/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port ${IDONTSCANNER_PORT}
+ExecStart=/opt/idontScanner/.venv/bin/python -m app.server
 Restart=on-failure
 TimeoutStartSec=30
 RestartSec=3
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=full
+ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/opt/idontScanner /var/lib/idontscanner /var/log/idontscanner
+RestrictSUIDSGID=true
+LockPersonality=true
 
 [Install]
 WantedBy=multi-user.target
