@@ -2442,3 +2442,42 @@ code {
     border-radius: 3px;
     object-fit: cover;
 }
+
+/* v3.0.5 — subtle polish for diagnostics and update surfaces. */
+.check-host-hero,
+.check-host-results,
+.check-summary-main,
+.check-summary-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.check-host-hero::before,
+.check-host-results::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(circle at 85% 10%, rgba(99, 102, 241, 0.08), transparent 34%);
+}
+
+.check-host-hero > *,
+.check-host-results > * {
+    position: relative;
+    z-index: 1;
+}
+
+.update-notice {
+    animation: idont-update-in 0.35s ease both;
+}
+
+@keyframes idont-update-in {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
