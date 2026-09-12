@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 
 APP="idontScanner"
-VERSION="v3.0.6"
+VERSION="v3.0.7"
 SERVICE="idontscanner"
 
 APP_DIR="/opt/idontScanner"
@@ -386,7 +386,7 @@ fi
 #
 # /opt/idontScanner/
 #   install.sh
-#   idontScanner-3.0.6/
+#   idontScanner-3.0.7/
 #       requirements.txt
 #       app/main.py
 # ------------------------------------------------------------
@@ -394,11 +394,11 @@ fi
 if [[ -z "$SOURCE_DIR" && -n "$SCRIPT_DIR" ]]; then
 
     if [[ \
-        -f "$SCRIPT_DIR/idontScanner-3.0.6/requirements.txt" &&
-        -f "$SCRIPT_DIR/idontScanner-3.0.6/app/main.py"
+        -f "$SCRIPT_DIR/idontScanner-3.0.7/requirements.txt" &&
+        -f "$SCRIPT_DIR/idontScanner-3.0.7/app/main.py"
     ]]; then
 
-        SOURCE_DIR="$SCRIPT_DIR/idontScanner-3.0.6"
+        SOURCE_DIR="$SCRIPT_DIR/idontScanner-3.0.7"
 
     fi
 
@@ -892,7 +892,7 @@ WorkingDirectory=$APP_DIR
 
 EnvironmentFile=$APP_DIR/.env
 
-ExecStart=$APP_DIR/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+ExecStart=$APP_DIR/.venv/bin/python -m app.server
 
 Restart=on-failure
 RestartSec=3
@@ -1068,6 +1068,21 @@ systemctl enable \
 # Start service
 # ============================================================
 
+read_runtime_port() {
+    local current="${1:-}"
+
+    if [[ -f "$DATA_DIR/runtime-port" ]]; then
+        local runtime
+        runtime="$(tr -d '[:space:]' < "$DATA_DIR/runtime-port")"
+        if [[ "$runtime" =~ ^[0-9]+$ ]] && (( runtime >= 1024 && runtime <= 65535 )); then
+            printf '%s\n' "$runtime"
+            return 0
+        fi
+    fi
+
+    printf '%s\n' "${current:-8088}"
+}
+
 start_service_with_port_retry() {
     local attempts=0
 
@@ -1088,6 +1103,8 @@ start_service_with_port_retry() {
         sleep 2
 
         if systemctl is-active --quiet "$SERVICE"; then
+            PORT="$(read_runtime_port "$PORT")"
+            write_environment_file
             return 0
         fi
 

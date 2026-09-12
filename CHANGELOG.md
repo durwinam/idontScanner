@@ -1,11 +1,11 @@
-## v3.0.6
+## v3.0.7
 
 - Improved installer port detection and startup retry handling.
 - Automatically selects the next available TCP port when the preferred port is occupied.
 - Keeps the selected port synchronized across `.env`, systemd, health checks, UFW, and final installation output.
 - Improved installer robustness against port races during service startup.
 
-# v3.0.6
+# v3.0.7
 
 ## Telegram UX & diagnostics
 - Added a richer Telegram dashboard for Domain Scanner, Check Host, Smart Connection, VPS Speed, Server Status, History, Network Diagnostics, Scheduler, and Settings.
@@ -19,7 +19,7 @@
 ## Web panel
 - Preserved the existing 65-domain scanner behavior.
 - Custom IP remains an independent raw target and does not override domain resolution, TLS, or SNI scanning.
-- Versioning and installer paths are aligned on v3.0.6.
+- Versioning and installer paths are aligned on v3.0.7.
 
 # v3.0.4
 

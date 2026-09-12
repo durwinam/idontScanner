@@ -31,10 +31,25 @@ installed_version() {
 }
 
 service_port() {
-    systemctl cat "$SERVICE_NAME" 2>/dev/null \
-        | sed -n 's/.*--port \([0-9][0-9]*\).*/\1/p' \
-        | tail -n1
+    local port=""
+
+    if [[ -f "/var/lib/idontscanner/runtime-port" ]]; then
+        port="$(tr -d '[:space:]' < "/var/lib/idontscanner/runtime-port")"
+    fi
+
+    if [[ ! "$port" =~ ^[0-9]+$ ]] && [[ -f "$APP_DIR/.env" ]]; then
+        port="$(sed -n 's/^IDONTSCANNER_PORT=//p' "$APP_DIR/.env" | tail -n1)"
+    fi
+
+    if [[ ! "$port" =~ ^[0-9]+$ ]]; then
+        port="$(systemctl cat "$SERVICE_NAME" 2>/dev/null \
+            | sed -n 's/.*--port \([0-9][0-9]*\).*/\1/p' \
+            | tail -n1)"
+    fi
+
+    printf '%s\n' "${port:-8088}"
 }
+
 
 panel_address() {
     local port ip
@@ -124,8 +139,11 @@ change_port() {
         return 1
     fi
 
-    sed -i -E "s/(--port )[0-9]+/\\1${new}/" \
-        "/etc/systemd/system/${SERVICE_NAME}.service"
+    if grep -q '^IDONTSCANNER_PORT=' "$APP_DIR/.env" 2>/dev/null; then
+        sed -i "s/^IDONTSCANNER_PORT=.*/IDONTSCANNER_PORT=$new/" "$APP_DIR/.env"
+    else
+        printf 'IDONTSCANNER_PORT=%s\n' "$new" >> "$APP_DIR/.env"
+    fi
 
     systemctl daemon-reload
 

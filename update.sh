@@ -20,9 +20,34 @@ command -v curl >/dev/null 2>&1 || die "curl is required."
 command -v rsync >/dev/null 2>&1 || die "rsync is required."
 
 service_port() {
-    systemctl cat "$SERVICE_NAME" 2>/dev/null \
-        | sed -n 's/.*--port \([0-9][0-9]*\).*/\1/p' \
-        | tail -n1
+    local port=""
+
+    if [[ -f "/var/lib/idontscanner/runtime-port" ]]; then
+        port="$(tr -d '[:space:]' < "/var/lib/idontscanner/runtime-port")"
+    fi
+
+    if [[ ! "$port" =~ ^[0-9]+$ ]] && [[ -f "$ENV_FILE" ]]; then
+        port="$(sed -n 's/^IDONTSCANNER_PORT=//p' "$ENV_FILE" | tail -n1)"
+    fi
+
+    if [[ ! "$port" =~ ^[0-9]+$ ]]; then
+        port="$(systemctl cat "$SERVICE_NAME" 2>/dev/null \
+            | sed -n 's/.*--port \([0-9][0-9]*\).*/\1/p' \
+            | tail -n1)"
+    fi
+
+    printf '%s\n' "${port:-8088}"
+}
+
+set_env_port() {
+    local port="$1"
+    [[ "$port" =~ ^[0-9]+$ ]] || return 1
+
+    if grep -q '^IDONTSCANNER_PORT=' "$ENV_FILE" 2>/dev/null; then
+        sed -i "s/^IDONTSCANNER_PORT=.*/IDONTSCANNER_PORT=$port/" "$ENV_FILE"
+    else
+        printf 'IDONTSCANNER_PORT=%s\n' "$port" >> "$ENV_FILE"
+    fi
 }
 
 health_check() {
@@ -127,11 +152,20 @@ if [[ -f "$BACKUP_DIR/.env" ]]; then
     cp -f "$BACKUP_DIR/.env" "$APP_DIR/.env"
 fi
 
+set_env_port "$PORT"
+
 "$APP_DIR/.venv/bin/pip" install -r "$APP_DIR/requirements.txt" \
     || die "Python dependencies could not be updated."
 
 chmod 600 "$APP_DIR/.env" 2>/dev/null || true
 chown -R idontscanner:idontscanner "$APP_DIR"
+
+if [[ -f "$APP_DIR/systemd/idontscanner.service" ]]; then
+    install -m 644 "$APP_DIR/systemd/idontscanner.service" \
+        "/etc/systemd/system/${SERVICE_NAME}.service"
+fi
+
+systemctl daemon-reload
 
 log "Running database migrations..."
 runuser -u idontscanner -- env PYTHONPATH="$APP_DIR" \
@@ -143,6 +177,8 @@ install -m 755 "$APP_DIR/idontscanner-cli" /usr/local/bin/idontScanner
 
 systemctl daemon-reload
 systemctl start "$SERVICE_NAME"
+
+PORT="$(service_port)"
 
 if ! health_check "$PORT"; then
     journalctl -u "$SERVICE_NAME" -n 80 --no-pager

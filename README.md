@@ -1,4 +1,4 @@
-## v3.0.6
+## v3.0.7
 
 - Telegram dashboard upgraded with colored buttons and supplied Premium custom emojis.
 - Check Host is available in Telegram with Global and six Iran nodes.
@@ -54,8 +54,8 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 ### نصب از فایل ZIP
 
 ```bash
-unzip idontScanner-v3.0.6.zip
-cd idontScanner-3.0.6
+unzip idontScanner-v3.0.7.zip
+cd idontScanner-3.0.7
 sudo bash install.sh --fresh
 ```
 
@@ -293,7 +293,7 @@ Scheduler به‌صورت پیش‌فرض خاموش است و تنظیماتش 
 ## 🗂️ ساختار پروژه
 
 ```text
-idontScanner-3.0.6/
+idontScanner-3.0.7/
 ├── app/
 │   ├── auth.py
 │   ├── config.py
@@ -361,7 +361,7 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 
 ## 📦 Version
 
-**v3.0.6**
+**v3.0.7**
 
 ---
 
