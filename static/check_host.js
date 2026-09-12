@@ -7,6 +7,7 @@ const permanent = document.querySelector("#checkHostPermanent");
 const portWrap = document.querySelector("#checkHostPortWrap");
 const portInput = document.querySelector("#checkHostPort");
 let activeType = "info";
+let activeNodeGroup = "global";
 
 function escapeHtml(value) {
     return String(value ?? "")
@@ -108,6 +109,7 @@ async function runCheck(target) {
         csrf: ID.csrf,
         type: activeType,
         target: checkTarget,
+        node_group: activeNodeGroup,
     });
 
     if (started.permanent_link) {
@@ -162,5 +164,15 @@ document.querySelectorAll(".check-mode").forEach(button => {
         activeType = button.dataset.type;
         portWrap.classList.toggle("hidden", !["tcp", "udp"].includes(activeType));
         setState(activeType === "info" ? "Ready." : `Ready for ${activeType.toUpperCase()} check.`);
+    });
+});
+
+
+document.querySelectorAll(".node-group").forEach((button) => {
+    button.addEventListener("click", () => {
+        document.querySelectorAll(".node-group").forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        activeNodeGroup = button.dataset.group || "global";
+        setState(activeNodeGroup === "iran" ? "Iran node group selected · 6 nodes." : "Global node group selected.");
     });
 });

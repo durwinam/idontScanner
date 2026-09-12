@@ -2324,3 +2324,36 @@ code {
         grid-column: auto;
     }
 }
+
+
+.check-host-node-groups {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 18px 0 10px;
+}
+
+.node-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--muted);
+    cursor: pointer;
+    transition: border-color .2s ease, background .2s ease, color .2s ease;
+}
+
+.node-group.active {
+    border-color: rgba(80, 210, 255, .5);
+    background: rgba(80, 210, 255, .09);
+    color: var(--text);
+}
+
+.node-group svg {
+    width: 16px;
+    height: 16px;
+}

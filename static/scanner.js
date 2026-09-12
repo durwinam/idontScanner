@@ -36,7 +36,9 @@ function setResultRow(row, data) {
         ? "ONLINE"
         : data.status.replaceAll("_", " ").toUpperCase();
     latency.textContent = data.latency_ms != null ? `${data.latency_ms} ms` : "—";
-    tls.textContent = data.tls_version || "—";
+    tls.textContent = data.mode === "raw_ping"
+        ? "RAW ICMP"
+        : (data.tls_version || "—");
     row.dataset.result = JSON.stringify(data);
 }
 
@@ -47,7 +49,12 @@ function renderDetails(data) {
         ["Latency", data.latency_ms != null ? `${data.latency_ms} ms` : null],
         ["DNS", data.dns_ms != null ? `${data.dns_ms} ms` : null],
         ["TCP", data.tcp_ms != null ? `${data.tcp_ms} ms` : null],
-        ["TLS", data.tls_ms != null ? `${data.tls_ms} ms` : null],
+        ["TLS", data.mode === "raw_ping" ? "Not used" : (data.tls_ms != null ? `${data.tls_ms} ms` : null)],
+        ["Ping Min", data.ping_min_ms != null ? `${data.ping_min_ms} ms` : null],
+        ["Ping Avg", data.ping_avg_ms != null ? `${data.ping_avg_ms} ms` : null],
+        ["Ping Max", data.ping_max_ms != null ? `${data.ping_max_ms} ms` : null],
+        ["Jitter", data.jitter_ms != null ? `${data.jitter_ms} ms` : null],
+        ["Packet Loss", data.packet_loss != null ? `${data.packet_loss}%` : null],
         ["TLS Version", data.tls_version],
         ["ALPN", data.alpn],
         ["Cipher", data.cipher],
@@ -111,7 +118,7 @@ document.querySelector("#scanBtn")?.addEventListener("click", async (event) => {
     }
 
     state.textContent = customEnabled
-        ? "Scanning all enabled targets via the custom IP…"
+        ? "Pinging all enabled rows against the raw custom IP…"
         : "Scanning real TLS connections…";
 
     document.querySelectorAll(".result-row").forEach((row) => {
@@ -231,7 +238,8 @@ document.querySelector("#cdnBtn")?.addEventListener("click", async (event) => {
 const customTargetToggle = document.querySelector("#customTargetToggle");
 customTargetToggle?.addEventListener("click", () => {
     const enabled = customTargetToggle.getAttribute("aria-pressed") === "true";
-    customTargetToggle.setAttribute("aria-pressed", String(!enabled));
-    customTargetToggle.querySelector(".toggle-label").textContent = enabled ? "VPS MODE" : "CUSTOM IP";
-    document.querySelector("#customTargetFields")?.classList.toggle("hidden", enabled);
+    const nextEnabled = !enabled;
+    customTargetToggle.setAttribute("aria-pressed", String(nextEnabled));
+    customTargetToggle.querySelector(".toggle-label").textContent = nextEnabled ? "CUSTOM IP" : "VPS MODE";
+    document.querySelector("#customTargetFields")?.classList.toggle("hidden", !nextEnabled);
 });
