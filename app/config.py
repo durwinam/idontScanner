@@ -17,7 +17,7 @@ DEFAULT_PORT = 443
 APP_VERSION = (
     (BASE / "VERSION").read_text(encoding="utf-8").strip()
     if (BASE / "VERSION").exists()
-    else "v3.0.2"
+    else "v3.0.5"
 )
 UPDATE_VERSION_URL = "https://raw.githubusercontent.com/durwinam/idontScanner/main/VERSION"
 
