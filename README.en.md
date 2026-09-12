@@ -43,8 +43,8 @@ The installer automatically:
 ### Installation from ZIP File
 
 ```bash
-unzip idontScanner-v2.1.0.zip
-cd idontScanner-2.1.0
+unzip idontScanner-v3.0.0.zip
+cd idontScanner-3.0.0
 sudo bash install.sh --fresh
 ```
 
@@ -282,7 +282,7 @@ You can also choose to send the results of all Scans or only results that requir
 ## 🗂️ Project Structure
 
 ```text
-idontScanner-2.1.0/
+idontScanner-3.0.0/
 ├── app/
 │   ├── auth.py
 │   ├── config.py
@@ -350,7 +350,7 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 
 ## 📦 Version
 
-**v2.1.0**
+**v3.0.0**
 
 ---
 

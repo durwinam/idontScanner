@@ -1,5 +1,17 @@
 # Changelog
 
+## v3.0.0
+
+- Added an internal Check Host workspace with Info, Ping, HTTP, TCP Port, UDP Port, and DNS checks through Check-Host global nodes.
+- Added global node result cards with status, latency, packet loss, DNS records, HTTP status, and permanent reports.
+- Added Download, Upload, Latency, and Jitter to Smart Connection without changing the standalone VPS Speed Test naming.
+- Preserved Custom IP as a destination override across all enabled Domain Scanner targets while keeping each scanned domain as SNI.
+- Added non-blocking web update notifications with current and latest versions.
+- Hardened the terminal updater and CLI with updater self-recovery and safe version comparison.
+- Version is now consistently reported as v3.0.0 in the web panel, installer, and CLI.
+
+# Changelog
+
 ## v2.1.0
 
 - Added 65 curated domain targets while preserving the original 41.

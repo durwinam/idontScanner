@@ -47,8 +47,8 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 ### نصب از فایل ZIP
 
 ```bash
-unzip idontScanner-v2.1.0.zip
-cd idontScanner-2.1.0
+unzip idontScanner-v3.0.0.zip
+cd idontScanner-3.0.0
 sudo bash install.sh --fresh
 ```
 
@@ -286,7 +286,7 @@ Scheduler به‌صورت پیش‌فرض خاموش است و تنظیماتش 
 ## 🗂️ ساختار پروژه
 
 ```text
-idontScanner-2.1.0/
+idontScanner-3.0.0/
 ├── app/
 │   ├── auth.py
 │   ├── config.py
@@ -354,7 +354,7 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 
 ## 📦 Version
 
-**v2.1.0**
+**v3.0.0**
 
 ---
 
@@ -363,3 +363,12 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 MIT License — Copyright © 2026 **durwinam**
 
 </div>
+
+
+## v3.0.0
+
+- Global Check Host page powered by the Check-Host API: Info, Ping, HTTP, TCP, UDP, and DNS.
+- Smart Connection now reports Download, Upload, Latency, and Jitter.
+- Custom IP remains a destination override for all enabled scanner targets while each domain remains the TLS SNI.
+- Web update notification checks the official GitHub VERSION file on page load.
+- Terminal updater and CLI were hardened for self-recovery when `update.sh` is missing.

@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 
 APP="idontScanner"
-VERSION="v2.1.0"
+VERSION="v3.0.0"
 SERVICE="idontscanner"
 
 APP_DIR="/opt/idontScanner"
@@ -359,7 +359,7 @@ fi
 #
 # /opt/idontScanner/
 #   install.sh
-#   idontScanner-2.1.0/
+#   idontScanner-3.0.0/
 #       requirements.txt
 #       app/main.py
 # ------------------------------------------------------------
@@ -367,11 +367,11 @@ fi
 if [[ -z "$SOURCE_DIR" && -n "$SCRIPT_DIR" ]]; then
 
     if [[ \
-        -f "$SCRIPT_DIR/idontScanner-2.1.0/requirements.txt" &&
-        -f "$SCRIPT_DIR/idontScanner-2.1.0/app/main.py"
+        -f "$SCRIPT_DIR/idontScanner-3.0.0/requirements.txt" &&
+        -f "$SCRIPT_DIR/idontScanner-3.0.0/app/main.py"
     ]]; then
 
-        SOURCE_DIR="$SCRIPT_DIR/idontScanner-2.1.0"
+        SOURCE_DIR="$SCRIPT_DIR/idontScanner-3.0.0"
 
     fi
 
@@ -557,6 +557,13 @@ rsync \
     --exclude "*.pyc" \
     "$SOURCE_DIR/" \
     "$APP_DIR/"
+
+# Ensure the updater is always installed even if a future packaging/source
+# step accidentally omits its executable bit or copies a partial file set.
+if [[ -f "$SOURCE_DIR/update.sh" ]]; then
+    install -m 755 "$SOURCE_DIR/update.sh" "$APP_DIR/update.sh" \
+        || die "Could not install update.sh"
+fi
 
 
 find "$APP_DIR" \

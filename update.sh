@@ -7,6 +7,7 @@ APP_DIR="/opt/idontScanner"
 ENV_FILE="$APP_DIR/.env"
 REPO="https://github.com/durwinam/idontScanner"
 BRANCH="main"
+RAW_BASE="https://raw.githubusercontent.com/durwinam/idontScanner/main"
 ARCHIVE_URL="https://github.com/durwinam/idontScanner/archive/refs/heads/${BRANCH}.tar.gz"
 
 log() { printf '\033[36m[idontScanner]\033[0m %s\n' "$*"; }
@@ -68,9 +69,28 @@ INSTALLED_VERSION="unknown"
 printf 'Installed: %s\n' "$INSTALLED_VERSION"
 printf 'Available: %s\n' "$LATEST_VERSION"
 
+version_is_newer() {
+    [[ "$1" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || return 1
+    local remote_major="${BASH_REMATCH[1]}"
+    local remote_minor="${BASH_REMATCH[2]}"
+    local remote_patch="${BASH_REMATCH[3]}"
+    [[ "$2" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || return 0
+    local local_major="${BASH_REMATCH[1]}"
+    local local_minor="${BASH_REMATCH[2]}"
+    local local_patch="${BASH_REMATCH[3]}"
+
+    (( remote_major > local_major )) ||
+    { (( remote_major == local_major && remote_minor > local_minor )); } ||
+    { (( remote_major == local_major && remote_minor == local_minor && remote_patch > local_patch )); }
+}
+
 if [[ "$INSTALLED_VERSION" == "$LATEST_VERSION" ]]; then
     ok "The installed version is already up to date."
     exit 0
+fi
+
+if ! version_is_newer "$LATEST_VERSION" "$INSTALLED_VERSION"; then
+    die "The available version ($LATEST_VERSION) is not newer than the installed version ($INSTALLED_VERSION)."
 fi
 
 if [[ -f "$ENV_FILE" ]]; then
@@ -91,6 +111,17 @@ rsync -a --delete \
     --exclude='*.db' \
     "$SOURCE_DIR/" "$APP_DIR/" \
     || die "Application files could not be updated."
+
+# Keep the updater executable even when an archive loses file mode metadata.
+if [[ -f "$SOURCE_DIR/update.sh" ]]; then
+    install -m 755 "$SOURCE_DIR/update.sh" "$APP_DIR/update.sh" \
+        || die "Could not install update.sh"
+else
+    curl -fL --retry 3 --connect-timeout 10 \
+        "$RAW_BASE/update.sh" -o "$APP_DIR/update.sh" \
+        || die "Could not restore update.sh"
+    chmod 755 "$APP_DIR/update.sh"
+fi
 
 if [[ -f "$BACKUP_DIR/.env" ]]; then
     cp -f "$BACKUP_DIR/.env" "$APP_DIR/.env"

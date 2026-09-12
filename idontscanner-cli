@@ -241,7 +241,15 @@ PY
 }
 
 update() {
-    [[ -x "$UPDATE_SCRIPT" ]] || die "Update script is missing: $UPDATE_SCRIPT"
+    if [[ ! -x "$UPDATE_SCRIPT" ]]; then
+        warn "Update script is missing. Restoring it from GitHub..."
+        command -v curl >/dev/null 2>&1 || die "curl is required to restore the updater."
+        curl -fL --retry 3 --connect-timeout 10 \
+            "https://raw.githubusercontent.com/durwinam/idontScanner/main/update.sh" \
+            -o "$UPDATE_SCRIPT" || die "Could not restore the updater."
+        chmod 755 "$UPDATE_SCRIPT"
+    fi
+
     bash "$UPDATE_SCRIPT"
 }
 
