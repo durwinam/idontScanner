@@ -1,6 +1,12 @@
 # Changelog
 
-## v3.0.2
+## v3.0.3
+
+- Added a TCP/443 reachability fallback for Custom IP diagnostics when ICMP receives no reply.
+- Custom IP remains a raw target; no TLS handshake or certificate inspection is performed in this mode.
+- Added the Lion and Sun flag asset for Iran node selection and Iran result rows in Check Host.
+
+## v3.0.3
 
 - Fixed Check Host mobile layout overflow so all diagnostic controls remain inside the viewport.
 - Improved responsive sizing for node-group and check-mode controls.

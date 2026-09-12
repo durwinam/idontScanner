@@ -47,8 +47,8 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 ### نصب از فایل ZIP
 
 ```bash
-unzip idontScanner-v3.0.2.zip
-cd idontScanner-3.0.2
+unzip idontScanner-v3.0.3.zip
+cd idontScanner-3.0.3
 sudo bash install.sh --fresh
 ```
 
@@ -286,7 +286,7 @@ Scheduler به‌صورت پیش‌فرض خاموش است و تنظیماتش 
 ## 🗂️ ساختار پروژه
 
 ```text
-idontScanner-3.0.2/
+idontScanner-3.0.3/
 ├── app/
 │   ├── auth.py
 │   ├── config.py
@@ -354,7 +354,7 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 
 ## 📦 Version
 
-**v3.0.2**
+**v3.0.3**
 
 ---
 
