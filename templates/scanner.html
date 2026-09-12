@@ -28,7 +28,7 @@
       <div class="mini-icon">{% include 'icons/target.svg' %}</div>
       <div>
         <b>Custom Ping Target</b>
-        <small>Use a raw IP for ICMP ping. DNS, TCP, TLS, and certificates are skipped.</small>
+        <small>Check one raw IP separately. The 65 domain targets remain unchanged.</small>
       </div>
     </div>
     <button type="button" class="premium-toggle" id="customTargetToggle" aria-pressed="false">
@@ -38,7 +38,7 @@
   </div>
   <div class="custom-target-fields hidden" id="customTargetFields">
     <label>Target IP<input id="customTargetIp" inputmode="decimal" placeholder="203.0.113.10" autocomplete="off"></label>
-    <span class="target-hint">Custom IP is used as a raw ping target. The 65 domain rows are retained for the scan view.</span>
+    <span class="target-hint">Custom IP is checked separately as a raw target. The 65 domains keep their normal VPS DNS/TLS scan behavior.</span>
   </div>
 </section>
 
@@ -53,6 +53,25 @@
   </div>
 
   <div id="results" class="results">
+    <div class="result-row custom-ip-result hidden" id="customIpResultRow" data-domain="__custom_ip__">
+      <div class="result-main">
+        <div class="mini-icon">{% include 'icons/target.svg' %}</div>
+        <div>
+          <b>Custom IP</b>
+          <small id="customIpResultTarget">Raw IP target</small>
+        </div>
+      </div>
+
+      <div class="result-right">
+        <span class="status idle" id="customIpStatus">READY</span>
+        <strong class="latency" id="customIpLatency">—</strong>
+        <small class="tls" id="customIpMeta">RAW ICMP</small>
+        <button class="more" id="customIpDetails" type="button" title="View details" aria-label="View details">
+          {% include 'icons/more.svg' %}
+        </button>
+      </div>
+    </div>
+
     {% for d in domains %}
     <div class="result-row" data-domain="{{ d.domain }}" data-id="{{ d.id }}">
       <div class="result-main">
