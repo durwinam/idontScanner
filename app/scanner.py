@@ -7,6 +7,9 @@ import socket
 import ssl
 import time
 import ipaddress
+import re
+import shutil
+import subprocess
 
 from app.config import DEFAULT_PORT, MAX_SCAN_TARGETS, SCAN_CONCURRENCY, TIMEOUT
 from app.database import db
@@ -178,6 +181,92 @@ def _tls_probe_sync(domain: str, connect_target: str | None = None):
                     pass
 
 
+def _raw_ping_sync(target: str):
+    """Ping a validated raw IP with the system ICMP utility.
+
+    Custom-target scanner mode intentionally stops at ICMP. It does not
+    resolve the domain, open TCP, perform TLS, or inspect certificates.
+    """
+    ipaddress.ip_address(target)
+    ping_binary = shutil.which("ping")
+    if not ping_binary:
+        return {
+            "status": "failed",
+            "latency_ms": None,
+            "ip": target,
+            "ping_min_ms": None,
+            "ping_avg_ms": None,
+            "ping_max_ms": None,
+            "jitter_ms": None,
+            "packet_loss": 100.0,
+            "error": "The system ping utility is not installed.",
+        }
+
+    command = [ping_binary, "-c", "4", "-W", "2"]
+    if ipaddress.ip_address(target).version == 6:
+        command.insert(1, "-6")
+    command.append(target)
+
+    try:
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {
+            "status": "timeout",
+            "latency_ms": None,
+            "ip": target,
+            "ping_min_ms": None,
+            "ping_avg_ms": None,
+            "ping_max_ms": None,
+            "jitter_ms": None,
+            "packet_loss": 100.0,
+            "error": "ICMP ping timed out." if isinstance(exc, subprocess.TimeoutExpired) else str(exc)[:180],
+        }
+
+    output = f"{completed.stdout}\n{completed.stderr}"
+    loss_match = re.search(r"([0-9]+(?:\.[0-9]+)?)%\s*packet loss", output)
+    rtt_match = re.search(
+        r"(?:rtt|round-trip).*?=\s*([0-9.]+)/([0-9.]+)/([0-9.]+)/([0-9.]+)",
+        output,
+    )
+    loss = float(loss_match.group(1)) if loss_match else 100.0
+
+    if not rtt_match:
+        return {
+            "status": "timeout" if completed.returncode else "failed",
+            "latency_ms": None,
+            "ip": target,
+            "ping_min_ms": None,
+            "ping_avg_ms": None,
+            "ping_max_ms": None,
+            "jitter_ms": None,
+            "packet_loss": round(loss, 1),
+            "error": "No ICMP reply received." if loss >= 100 else "Could not parse ICMP timing.",
+        }
+
+    minimum, average, maximum, jitter = map(float, rtt_match.groups())
+    return {
+        "status": "ok" if loss < 100 else "timeout",
+        "latency_ms": round(average, 1),
+        "ip": target,
+        "ping_min_ms": round(minimum, 1),
+        "ping_avg_ms": round(average, 1),
+        "ping_max_ms": round(maximum, 1),
+        "jitter_ms": round(jitter, 1),
+        "packet_loss": round(loss, 1),
+        "error": None if loss < 100 else "All ICMP packets were lost.",
+    }
+
+
+async def raw_ping_probe(target: str):
+    return await asyncio.to_thread(_raw_ping_sync, target)
+
+
 async def tls_probe(domain: str, connect_target: str | None = None):
     return await asyncio.to_thread(_tls_probe_sync, domain, connect_target)
 
@@ -198,9 +287,19 @@ async def run_scan(connect_target: str | None = None):
     start_perf = time.perf_counter()
     semaphore = asyncio.Semaphore(8)
 
+    custom_ping_result = None
+    if connect_target:
+        custom_ping_result = await raw_ping_probe(connect_target)
+
     async def scan_domain(domain):
         async with semaphore:
-            result = await tls_probe(domain["domain"], connect_target)
+            if custom_ping_result is not None:
+                return domain, {
+                    **custom_ping_result,
+                    "mode": "raw_ping",
+                }
+
+            result = await tls_probe(domain["domain"])
             return domain, result
 
     pairs = await asyncio.gather(
@@ -335,6 +434,7 @@ async def run_scan(connect_target: str | None = None):
         "started_at": started,
         "duration_ms": round(duration, 1),
         "target": connect_target or "VPS-resolved endpoint",
+        "mode": "raw_ping" if connect_target else "tls",
         "score": score,
         "score_label": (
             "EXCELLENT" if score >= 90

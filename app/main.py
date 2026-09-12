@@ -1097,8 +1097,19 @@ async def check_host_start(request: Request):
 
     check_type = str(body.get("type", "ping")).strip().lower()
     target = str(body.get("target", "")).strip()
+    node_group = str(body.get("node_group", "global")).strip().lower()
+    nodes = None
+    if node_group == "iran":
+        nodes = [
+            "ir1.node.check-host.net",
+            "ir2.node.check-host.net",
+            "ir3.node.check-host.net",
+            "ir4.node.check-host.net",
+            "ir5.node.check-host.net",
+            "ir7.node.check-host.net",
+        ]
     try:
-        return await start_check_host(check_type, target)
+        return await start_check_host(check_type, target, nodes=nodes)
     except (ValueError, RuntimeError) as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
     except Exception as exc:

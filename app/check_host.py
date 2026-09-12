@@ -15,6 +15,14 @@ from typing import Any
 API_BASE = "https://check-host.net"
 USER_AGENT = "idontScanner-CheckHost/3.0"
 MAX_NODES = 15
+IRAN_NODES = (
+    "ir1.node.check-host.net",
+    "ir2.node.check-host.net",
+    "ir3.node.check-host.net",
+    "ir4.node.check-host.net",
+    "ir5.node.check-host.net",
+    "ir7.node.check-host.net",
+)
 REQUEST_TIMEOUT = 12.0
 RESULT_TIMEOUT = 30.0
 REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -74,13 +82,28 @@ def _request_json(url: str) -> dict[str, Any]:
     return data
 
 
-async def start_check(check_type: str, target: str, max_nodes: int = MAX_NODES) -> dict[str, Any]:
+async def start_check(
+    check_type: str,
+    target: str,
+    max_nodes: int = MAX_NODES,
+    nodes: list[str] | None = None,
+) -> dict[str, Any]:
     if check_type not in {"ping", "http", "tcp", "udp", "dns"}:
         raise ValueError("Unsupported check type.")
 
     target = validate_check_host(target)
     max_nodes = max(1, min(int(max_nodes), MAX_NODES))
-    query = urllib.parse.urlencode({"host": target, "max_nodes": max_nodes})
+    query_items: list[tuple[str, str]] = [("host", target)]
+
+    if nodes:
+        selected = [node for node in nodes if node in IRAN_NODES]
+        if not selected:
+            raise ValueError("No valid Check-Host nodes were selected.")
+        query_items.extend(("node", node) for node in selected[:MAX_NODES])
+    else:
+        query_items.append(("max_nodes", str(max_nodes)))
+
+    query = urllib.parse.urlencode(query_items)
     data = await asyncio.to_thread(_request_json, f"{API_BASE}/check-{check_type}?{query}")
 
     if not data.get("ok") or not data.get("request_id"):
@@ -104,6 +127,7 @@ async def start_check(check_type: str, target: str, max_nodes: int = MAX_NODES) 
         "nodes": normalized_nodes,
         "check_type": check_type,
         "target": target,
+        "node_group": "iran" if nodes else "global",
     }
 
 
