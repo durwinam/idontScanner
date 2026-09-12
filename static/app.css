@@ -2422,3 +2422,23 @@ code {
     width: 16px;
     height: 16px;
 }
+
+
+/* v3.0.3 — Iran Lion and Sun node marker */
+.iran-flag-icon {
+    width: 24px;
+    height: 16px;
+    flex: 0 0 auto;
+    border-radius: 3px;
+    object-fit: cover;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.node-flag--image {
+    display: inline-flex;
+    width: 30px;
+    height: 20px;
+    flex: 0 0 30px;
+    border-radius: 3px;
+    object-fit: cover;
+}

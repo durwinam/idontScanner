@@ -33,13 +33,13 @@ function setResultRow(row, data) {
 
     status.className = `status ${data.status}`;
     status.textContent = data.mode === "raw_ping"
-        ? (data.status === "ok" ? "PING OK" : data.status === "timeout" ? "ICMP TIMEOUT" : "PING FAILED")
+        ? (data.reachability === "tcp_fallback" ? "TCP 443 REACHABLE" : data.status === "ok" ? "PING OK" : data.status === "timeout" ? "ICMP TIMEOUT" : "PING FAILED")
         : data.status === "ok"
             ? "ONLINE"
             : data.status.replaceAll("_", " ").toUpperCase();
     latency.textContent = data.latency_ms != null ? `${data.latency_ms} ms` : "—";
     tls.textContent = data.mode === "raw_ping"
-        ? "RAW ICMP"
+        ? (data.reachability === "tcp_fallback" ? "ICMP BLOCKED · TCP 443" : "RAW ICMP")
         : (data.tls_version || "—");
     row.dataset.result = JSON.stringify(data);
 }
@@ -57,6 +57,8 @@ function renderDetails(data) {
         ["Ping Max", data.ping_max_ms != null ? `${data.ping_max_ms} ms` : null],
         ["Jitter", data.jitter_ms != null ? `${data.jitter_ms} ms` : null],
         ["Packet Loss", data.packet_loss != null ? `${data.packet_loss}%` : null],
+        ["Reachability", data.reachability === "tcp_fallback" ? "TCP fallback" : data.reachability === "icmp" ? "ICMP" : null],
+        ["TCP Fallback", data.tcp_fallback_ms != null ? `${data.tcp_fallback_ms} ms · port ${data.fallback_port || 443}` : null],
         ["TLS Version", data.tls_version],
         ["ALPN", data.alpn],
         ["Cipher", data.cipher],
@@ -120,7 +122,7 @@ document.querySelector("#scanBtn")?.addEventListener("click", async (event) => {
     }
 
     state.textContent = customEnabled
-        ? "Running raw ICMP ping against the custom IP…"
+        ? "Running ICMP ping with TCP 443 fallback against the custom IP…"
         : "Scanning real TLS connections…";
 
     document.querySelectorAll(".result-row").forEach((row) => {

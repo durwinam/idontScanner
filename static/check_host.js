@@ -24,7 +24,12 @@ function formatMs(value) {
 
 function flag(code) {
     if (!code || code.length !== 2) return "";
-    return code.toUpperCase().replace(/./g, char => String.fromCodePoint(char.charCodeAt(0) + 127397));
+
+    if (code.toUpperCase() === "IR") {
+        return `<img class="node-flag node-flag--image" src="${ID.base}/static/icons/iran-lion-sun.svg" alt="Iran">`;
+    }
+
+    return `<span class="node-flag">${code.toUpperCase().replace(/./g, char => String.fromCodePoint(char.charCodeAt(0) + 127397))}</span>`;
 }
 
 function setState(text) {
@@ -71,7 +76,7 @@ function renderResults(data) {
                     ? `${(item.a || []).concat(item.aaaa || []).map(escapeHtml).join(" · ") || "No records"}`
                     : escapeHtml(item.ip || item.error || "");
         return `<div class="check-host-row ${status}">
-            <div class="check-node-location"><span class="node-flag">${flag(item.country_code)}</span><div><b>${escapeHtml(item.country)}, ${escapeHtml(item.city)}</b><small>${escapeHtml(item.id)} · ${escapeHtml(item.asn || "")}</small></div></div>
+            <div class="check-node-location">${flag(item.country_code)}<div><b>${escapeHtml(item.country)}, ${escapeHtml(item.city)}</b><small>${escapeHtml(item.id)} · ${escapeHtml(item.asn || "")}</small></div></div>
             <span class="status ${status}">${status.toUpperCase()}</span>
             <strong>${escapeHtml(metric)}</strong>
             <small>${detail}</small>
