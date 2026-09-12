@@ -43,8 +43,8 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 ### Установка из ZIP-файла
 
 ```bash
-unzip idontScanner-v2.0.0.zip
-cd idontScanner-2.0.0
+unzip idontScanner-v2.1.0.zip
+cd idontScanner-2.1.0
 sudo bash install.sh --fresh
 ```
 
@@ -125,6 +125,14 @@ sudo idontScanner help
 ---
 
 ## 🔍 Сканеры
+
+### ⚡ VPS Speed Test
+
+Dedicated VPS network test for bounded Download, Upload, Latency and Jitter measurements.
+
+### 🎯 Custom Ping Target
+
+Domain scans can optionally use a user-supplied IP as the TCP/TLS connection target while preserving the scanned hostname as SNI.
 
 ### 🌐 Domain Scanner
 
@@ -277,7 +285,7 @@ Scheduler отключён по умолчанию, а его настройки
 ## 🗂️ Структура проекта
 
 ```text
-idontScanner-2.0.0/
+idontScanner-2.1.0/
 ├── app/
 │   ├── auth.py
 │   ├── config.py
@@ -346,7 +354,7 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 
 ## 📦 Версия
 
-**v2.0.0**
+**v2.1.0**
 
 ---
 

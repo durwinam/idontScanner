@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.1.0
+
+- Added 65 curated domain targets while preserving the original 41.
+- Added Custom Ping Target for domain diagnostics with SNI preserved.
+- Added scan score and lightweight scan intelligence.
+- Added dedicated VPS Speed Test with animated progress UI.
+- Added VPS Speed Test to navigation and dashboard.
+- Added responsive glass UI for the new diagnostics.
+
+# Changelog
+
 ## v2.0.0
 
 ### Dashboard enhancement
