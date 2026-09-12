@@ -6,6 +6,9 @@ import asyncio
 import hmac
 import os
 import shutil
+import ipaddress
+import urllib.request
+import urllib.error
 import socket
 import sqlite3
 import ssl
@@ -440,6 +443,16 @@ async def scanner_page(request: Request):
     )
 
 
+@app.get("/speed-test/", response_class=HTMLResponse)
+async def speed_test_page(request: Request):
+    if not require_auth(request):
+        return _redirect_to_login()
+    return templates.TemplateResponse(
+        "speed_test.html",
+        _page_context(request, active="speed_test"),
+    )
+
+
 @app.get("/connection/", response_class=HTMLResponse)
 async def connection_page(request: Request):
     if not require_auth(request):
@@ -515,7 +528,100 @@ async def scan(request: Request):
     body, error = await _authorized_json(request)
     if error:
         return error
-    return await run_scan()
+    raw_target = str(body.get("connect_target", "")).strip()
+    connect_target = None
+    if raw_target:
+        try:
+            connect_target = str(ipaddress.ip_address(raw_target))
+        except ValueError:
+            return JSONResponse(
+                {"error": "Custom ping target must be a valid IP address."},
+                status_code=400,
+            )
+    return await run_scan(connect_target)
+
+
+def _speed_request(url: str, method: str = "GET", data: bytes | None = None, timeout: float = 12.0):
+    request = urllib.request.Request(
+        url,
+        method=method,
+        data=data,
+        headers={"User-Agent": "idontScanner-SpeedTest/2.1"},
+    )
+    return urllib.request.urlopen(request, timeout=timeout)
+
+
+def _measure_speed_test():
+    import statistics
+    download_samples = []
+    upload_samples = []
+    latency_samples = []
+    for _ in range(3):
+        started = time.perf_counter()
+        with _speed_request(
+            "https://speed.cloudflare.com/__down?bytes=1000000",
+            timeout=10,
+        ) as response:
+            response.read(128)
+        latency_samples.append((time.perf_counter() - started) * 1000)
+    for size in (2_000_000, 4_000_000, 8_000_000):
+        started = time.perf_counter()
+        received = 0
+        with _speed_request(
+            f"https://speed.cloudflare.com/__down?bytes={size}",
+            timeout=20,
+        ) as response:
+            while True:
+                chunk = response.read(256 * 1024)
+                if not chunk:
+                    break
+                received += len(chunk)
+        elapsed = max(0.001, time.perf_counter() - started)
+        download_samples.append(received * 8 / elapsed / 1_000_000)
+    payload = b"0" * 2_000_000
+    for size in (1_000_000, 2_000_000):
+        body = payload[:size]
+        started = time.perf_counter()
+        with _speed_request(
+            "https://speed.cloudflare.com/__up",
+            method="POST",
+            data=body,
+            timeout=20,
+        ) as response:
+            response.read(64)
+        elapsed = max(0.001, time.perf_counter() - started)
+        upload_samples.append(len(body) * 8 / elapsed / 1_000_000)
+    average_latency = statistics.mean(latency_samples)
+    jitter = (
+        statistics.mean(
+            abs(a - b)
+            for a, b in zip(latency_samples, latency_samples[1:])
+        )
+        if len(latency_samples) > 1
+        else 0.0
+    )
+    return {
+        "download_mbps": round(statistics.mean(download_samples), 1),
+        "upload_mbps": round(statistics.mean(upload_samples), 1),
+        "latency_ms": round(average_latency, 1),
+        "jitter_ms": round(jitter, 1),
+        "samples": 3,
+        "provider": "Cloudflare Speed Test endpoint",
+    }
+
+
+@app.post("/api/vps-speed-test")
+async def vps_speed_test(request: Request):
+    body, error = await _authorized_json(request)
+    if error:
+        return error
+    started = time.perf_counter()
+    try:
+        result = await asyncio.to_thread(_measure_speed_test)
+        result["duration_ms"] = round((time.perf_counter() - started) * 1000, 1)
+        return result
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        return JSONResponse({"error": f"Speed test failed: {str(exc)[:180]}"}, status_code=502)
 
 
 @app.get("/api/history")

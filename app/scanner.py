@@ -6,6 +6,7 @@ import asyncio
 import socket
 import ssl
 import time
+import ipaddress
 
 from app.config import DEFAULT_PORT, MAX_SCAN_TARGETS, SCAN_CONCURRENCY, TIMEOUT
 from app.database import db
@@ -45,7 +46,7 @@ def peer_certificate_details(ssl_obj):
     return details
 
 
-def _tls_probe_sync(domain: str):
+def _tls_probe_sync(domain: str, connect_target: str | None = None):
     total_start = time.perf_counter()
     ip = ""
     dns_ms = None
@@ -66,7 +67,10 @@ def _tls_probe_sync(domain: str):
         if not infos:
             raise OSError("DNS returned no address")
 
-        ip = infos[0][4][0]
+        resolved_ip = infos[0][4][0]
+        ip = connect_target or resolved_ip
+        if connect_target:
+            ipaddress.ip_address(connect_target)
         tcp_start = time.perf_counter()
         sock = socket.create_connection(
             (ip, DEFAULT_PORT),
@@ -174,11 +178,11 @@ def _tls_probe_sync(domain: str):
                     pass
 
 
-async def tls_probe(domain: str):
-    return await asyncio.to_thread(_tls_probe_sync, domain)
+async def tls_probe(domain: str, connect_target: str | None = None):
+    return await asyncio.to_thread(_tls_probe_sync, domain, connect_target)
 
 
-async def run_scan():
+async def run_scan(connect_target: str | None = None):
     with db() as con:
         domains = con.execute(
             """
@@ -196,7 +200,7 @@ async def run_scan():
 
     async def scan_domain(domain):
         async with semaphore:
-            result = await tls_probe(domain["domain"])
+            result = await tls_probe(domain["domain"], connect_target)
             return domain, result
 
     pairs = await asyncio.gather(
@@ -314,10 +318,30 @@ async def run_scan():
         )
     )
 
+    score = 0
+    if pairs:
+        health_ratio = ok_count / len(pairs)
+        score = round(health_ratio * 70)
+        if average is not None:
+            score += 20 if average < 80 else 14 if average < 150 else 8 if average < 250 else 0
+        if slow_count == 0:
+            score += 10
+        elif slow_count <= max(1, len(pairs) // 10):
+            score += 5
+        score = max(0, min(100, score))
+
     return {
         "scan_id": scan_id,
         "started_at": started,
         "duration_ms": round(duration, 1),
+        "target": connect_target or "VPS-resolved endpoint",
+        "score": score,
+        "score_label": (
+            "EXCELLENT" if score >= 90
+            else "GOOD" if score >= 75
+            else "FAIR" if score >= 55
+            else "NEEDS ATTENTION"
+        ),
         "total": len(pairs),
         "ok": ok_count,
         "slow": slow_count,
