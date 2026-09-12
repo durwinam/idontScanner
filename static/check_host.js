@@ -104,7 +104,7 @@ async function runCheck(target) {
             ? `https://${target}`
             : target;
 
-    setState(`Starting ${activeType.toUpperCase()} from global nodes…`);
+    setState(`Starting ${activeType.toUpperCase()} from ${activeNodeGroup === "iran" ? "Iran" : "global"} nodes…`);
     const started = await postJson(`${ID.base}/api/check-host/start`, {
         csrf: ID.csrf,
         type: activeType,
@@ -127,7 +127,7 @@ async function runCheck(target) {
         if (!response.ok) throw new Error(data.error || "Unable to fetch result.");
         last = data;
         renderResults(data);
-        setState(`Checking global nodes · ${data.completed}/${data.total} completed…`);
+        setState(`Checking ${activeNodeGroup === "iran" ? "Iran" : "global"} nodes · ${data.completed}/${data.total} completed…`);
         if (data.complete) break;
         await new Promise(resolve => setTimeout(resolve, 900));
     }

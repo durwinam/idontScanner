@@ -32,9 +32,11 @@ function setResultRow(row, data) {
     const tls = row.querySelector(".tls");
 
     status.className = `status ${data.status}`;
-    status.textContent = data.status === "ok"
-        ? "ONLINE"
-        : data.status.replaceAll("_", " ").toUpperCase();
+    status.textContent = data.mode === "raw_ping"
+        ? (data.status === "ok" ? "PING OK" : data.status === "timeout" ? "ICMP TIMEOUT" : "PING FAILED")
+        : data.status === "ok"
+            ? "ONLINE"
+            : data.status.replaceAll("_", " ").toUpperCase();
     latency.textContent = data.latency_ms != null ? `${data.latency_ms} ms` : "—";
     tls.textContent = data.mode === "raw_ping"
         ? "RAW ICMP"
@@ -118,7 +120,7 @@ document.querySelector("#scanBtn")?.addEventListener("click", async (event) => {
     }
 
     state.textContent = customEnabled
-        ? "Pinging all enabled rows against the raw custom IP…"
+        ? "Running raw ICMP ping against the custom IP…"
         : "Scanning real TLS connections…";
 
     document.querySelectorAll(".result-row").forEach((row) => {
