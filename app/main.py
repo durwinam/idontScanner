@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import hmac
+import ipaddress
+import json
 import os
 import shutil
-import ipaddress
-import urllib.request
-import urllib.error
 import socket
 import sqlite3
 import ssl
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
@@ -22,8 +23,26 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.auth import hash_password, verify_password
-from app.config import BASE, BASE_PATH, SECRET, TIMEOUT
-from app.connection import diagnose_config, parse_config, probe_services
+from app.config import (
+    APP_VERSION,
+    BASE,
+    BASE_PATH,
+    SECRET,
+    TIMEOUT,
+    UPDATE_VERSION_URL,
+)
+from app.check_host import (
+    fetch_result as fetch_check_host_result,
+    local_info as check_host_info,
+    normalize_results as normalize_check_host_results,
+    start_check as start_check_host,
+)
+from app.connection import (
+    diagnose_config,
+    parse_config,
+    probe_services,
+)
+from app.network import measure_network_quality
 from app.database import (
     db,
     get_setting,
@@ -127,6 +146,7 @@ def _page_context(request: Request, **extra):
         "base": BASE_PATH,
         "csrf": csrf(request),
         "username": get_setting("username", "admin"),
+        "app_version": APP_VERSION,
         "server_ip": server_ip(),
         "scheduler": scheduler,
         "sessions": sessions,
@@ -176,6 +196,7 @@ async def login_page(request: Request):
             "base": BASE_PATH,
             "setup": password_row is None,
             "csrf": csrf(request),
+            "app_version": APP_VERSION,
         },
     )
 
@@ -359,6 +380,38 @@ def _temperature() -> float | None:
     return None
 
 
+@app.get("/api/update-check")
+async def update_check(request: Request):
+    if not require_auth(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+
+    def fetch_remote_version():
+        request_obj = urllib.request.Request(
+            UPDATE_VERSION_URL,
+            headers={"User-Agent": "idontScanner-UpdateCheck/3.0"},
+        )
+        with urllib.request.urlopen(request_obj, timeout=4) as response:
+            return response.read(128).decode("utf-8").strip()
+
+    try:
+        latest = await asyncio.to_thread(fetch_remote_version)
+    except Exception:
+        return {"current_version": APP_VERSION, "latest_version": None, "update_available": False}
+
+    version_pattern = r"^v\d+\.\d+\.\d+$"
+    if not __import__("re").fullmatch(version_pattern, latest):
+        return {"current_version": APP_VERSION, "latest_version": None, "update_available": False}
+
+    def newer(remote: str, local: str) -> bool:
+        return tuple(map(int, remote[1:].split("."))) > tuple(map(int, local[1:].split(".")))
+
+    return {
+        "current_version": APP_VERSION,
+        "latest_version": latest,
+        "update_available": newer(latest, APP_VERSION),
+    }
+
+
 @app.get("/api/system/stats")
 async def system_stats(request: Request):
     if not require_auth(request):
@@ -440,6 +493,17 @@ async def scanner_page(request: Request):
     return templates.TemplateResponse(
         "scanner.html",
         _page_context(request, domains=domains, active="scanner"),
+    )
+
+
+@app.get("/check-host/", response_class=HTMLResponse)
+async def check_host_page(request: Request):
+    if not require_auth(request):
+        return _redirect_to_login()
+
+    return templates.TemplateResponse(
+        "check_host.html",
+        _page_context(request, active="check_host"),
     )
 
 
@@ -541,73 +605,8 @@ async def scan(request: Request):
     return await run_scan(connect_target)
 
 
-def _speed_request(url: str, method: str = "GET", data: bytes | None = None, timeout: float = 12.0):
-    request = urllib.request.Request(
-        url,
-        method=method,
-        data=data,
-        headers={"User-Agent": "idontScanner-SpeedTest/2.1"},
-    )
-    return urllib.request.urlopen(request, timeout=timeout)
-
-
 def _measure_speed_test():
-    import statistics
-    download_samples = []
-    upload_samples = []
-    latency_samples = []
-    for _ in range(3):
-        started = time.perf_counter()
-        with _speed_request(
-            "https://speed.cloudflare.com/__down?bytes=1000000",
-            timeout=10,
-        ) as response:
-            response.read(128)
-        latency_samples.append((time.perf_counter() - started) * 1000)
-    for size in (2_000_000, 4_000_000, 8_000_000):
-        started = time.perf_counter()
-        received = 0
-        with _speed_request(
-            f"https://speed.cloudflare.com/__down?bytes={size}",
-            timeout=20,
-        ) as response:
-            while True:
-                chunk = response.read(256 * 1024)
-                if not chunk:
-                    break
-                received += len(chunk)
-        elapsed = max(0.001, time.perf_counter() - started)
-        download_samples.append(received * 8 / elapsed / 1_000_000)
-    payload = b"0" * 2_000_000
-    for size in (1_000_000, 2_000_000):
-        body = payload[:size]
-        started = time.perf_counter()
-        with _speed_request(
-            "https://speed.cloudflare.com/__up",
-            method="POST",
-            data=body,
-            timeout=20,
-        ) as response:
-            response.read(64)
-        elapsed = max(0.001, time.perf_counter() - started)
-        upload_samples.append(len(body) * 8 / elapsed / 1_000_000)
-    average_latency = statistics.mean(latency_samples)
-    jitter = (
-        statistics.mean(
-            abs(a - b)
-            for a, b in zip(latency_samples, latency_samples[1:])
-        )
-        if len(latency_samples) > 1
-        else 0.0
-    )
-    return {
-        "download_mbps": round(statistics.mean(download_samples), 1),
-        "upload_mbps": round(statistics.mean(upload_samples), 1),
-        "latency_ms": round(average_latency, 1),
-        "jitter_ms": round(jitter, 1),
-        "samples": 3,
-        "provider": "Cloudflare Speed Test endpoint",
-    }
+    return measure_network_quality()
 
 
 @app.post("/api/vps-speed-test")
@@ -1080,7 +1079,65 @@ async def connection_check(request: Request):
 
     result = await diagnose_config(config)
     result["service_tests"] = await probe_services()
+    try:
+        result["connection_quality"] = await asyncio.to_thread(measure_network_quality)
+    except Exception as exc:
+        result["connection_quality"] = {
+            "status": "unavailable",
+            "error": str(exc)[:180],
+        }
     return result
+
+
+@app.post("/api/check-host/start")
+async def check_host_start(request: Request):
+    body, error = await _authorized_json(request)
+    if error:
+        return error
+
+    check_type = str(body.get("type", "ping")).strip().lower()
+    target = str(body.get("target", "")).strip()
+    try:
+        return await start_check_host(check_type, target)
+    except (ValueError, RuntimeError) as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"error": f"Check-Host request failed: {str(exc)[:160]}"}, status_code=502)
+
+
+@app.get("/api/check-host/result/{request_id}")
+async def check_host_result(request: Request, request_id: str):
+    if not require_auth(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+
+    try:
+        raw = await fetch_check_host_result(request_id)
+        nodes = request.query_params.get("nodes", "")
+        if not nodes:
+            return JSONResponse({"error": "node metadata is required"}, status_code=400)
+        node_map = json.loads(nodes)
+        if not isinstance(node_map, dict):
+            raise ValueError("invalid node metadata")
+        check_type = request.query_params.get("type", "ping")
+        return normalize_check_host_results(check_type, raw, node_map)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"error": f"Unable to read Check-Host result: {str(exc)[:160]}"}, status_code=502)
+
+
+@app.post("/api/check-host/info")
+async def check_host_info_route(request: Request):
+    body, error = await _authorized_json(request)
+    if error:
+        return error
+
+    try:
+        return await asyncio.to_thread(check_host_info, str(body.get("target", "")))
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"error": f"Info lookup failed: {str(exc)[:160]}"}, status_code=502)
 
 
 @app.post("/api/cdn-check")

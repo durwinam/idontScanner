@@ -14,6 +14,12 @@ if len(SECRET) < 32:
     SECRET = secrets.token_urlsafe(48)
 
 DEFAULT_PORT = 443
+APP_VERSION = (
+    (BASE / "VERSION").read_text(encoding="utf-8").strip()
+    if (BASE / "VERSION").exists()
+    else "v3.0.0"
+)
+UPDATE_VERSION_URL = "https://raw.githubusercontent.com/durwinam/idontScanner/main/VERSION"
 
 DEFAULT_DOMAINS = [
     ("Cloudflare", "cloudflare.com", "Cloud"),
