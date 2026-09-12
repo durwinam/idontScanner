@@ -21,6 +21,7 @@ function valueOrFallback(value) {
 
 function setScannerMode(name) {
     document.querySelector("#modeDomain")?.classList.toggle("hidden", name !== "domain");
+    document.querySelector("#domainTargetCard")?.classList.toggle("hidden", name !== "domain");
     document.querySelector("#modeSni")?.classList.toggle("hidden", name !== "sni");
     document.querySelector("#modeCdn")?.classList.toggle("hidden", name !== "cdn");
 }
@@ -109,8 +110,11 @@ document.querySelector("#scanBtn")?.addEventListener("click", async (event) => {
     });
 
     try {
+        const customEnabled = document.querySelector("#customTargetToggle")?.getAttribute("aria-pressed") === "true";
+        const customTarget = document.querySelector("#customTargetIp")?.value.trim() || "";
         const data = await postJson(`${ID.base}/api/scan`, {
             csrf: ID.csrf,
+            connect_target: customEnabled ? customTarget : "",
         });
 
         data.results.forEach((result) => {
@@ -122,7 +126,9 @@ document.querySelector("#scanBtn")?.addEventListener("click", async (event) => {
             }
         });
 
-        state.textContent = `Completed · ${data.ok}/${data.total} online · average ${data.average_ms ?? "N/A"} ms`;
+        state.textContent = `Completed · ${data.ok}/${data.total} online · average ${data.average_ms ?? "N/A"} ms · score ${data.score}/100`;
+        const scoreBox = document.querySelector("#scanScore");
+        if (scoreBox) scoreBox.innerHTML = `<strong>${data.score}/100</strong><span>${escapeHtml(data.score_label)}</span>`;
     } catch (error) {
         state.textContent = error.message;
     } finally {
@@ -209,4 +215,13 @@ document.querySelector("#cdnBtn")?.addEventListener("click", async (event) => {
     } finally {
         button.disabled = false;
     }
+});
+
+
+const customTargetToggle = document.querySelector("#customTargetToggle");
+customTargetToggle?.addEventListener("click", () => {
+    const enabled = customTargetToggle.getAttribute("aria-pressed") === "true";
+    customTargetToggle.setAttribute("aria-pressed", String(!enabled));
+    customTargetToggle.querySelector(".toggle-label").textContent = enabled ? "VPS MODE" : "CUSTOM IP";
+    document.querySelector("#customTargetFields")?.classList.toggle("hidden", enabled);
 });
