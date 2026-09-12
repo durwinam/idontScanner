@@ -43,8 +43,8 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 ### 从 ZIP 文件安装
 
 ```bash
-unzip idontScanner-v3.0.5.zip
-cd idontScanner-3.0.5
+unzip idontScanner-v3.0.6.zip
+cd idontScanner-3.0.6
 sudo bash install.sh --fresh
 ```
 
@@ -285,7 +285,7 @@ Scheduler 默认关闭，其设置会保存在 SQLite 中。
 ## 🗂️ 项目结构
 
 ```text
-idontScanner-3.0.5/
+idontScanner-3.0.6/
 ├── app/
 │   ├── auth.py
 │   ├── config.py
@@ -354,7 +354,7 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 
 ## 📦 版本
 
-**v3.0.5**
+**v3.0.6**
 
 ---
 

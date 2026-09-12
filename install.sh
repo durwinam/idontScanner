@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 
 APP="idontScanner"
-VERSION="v3.0.5"
+VERSION="v3.0.6"
 SERVICE="idontscanner"
 
 APP_DIR="/opt/idontScanner"
@@ -270,28 +270,55 @@ ok "Python $PYVER ready."
 
 
 # ============================================================
-# Port
+# Port selection
 # ============================================================
 
+port_is_available() {
+    local port="$1"
+
+    # Check the kernel's listening sockets first.
+    if ss -H -lnt 2>/dev/null |
+        awk '{print $4}' |
+        grep -Eq "(:|\])${port}$"; then
+        return 1
+    fi
+
+    # Also perform a real bind check. This closes the small race where
+    # another process can claim the port between the socket check and
+    # systemd starting uvicorn.
+    "$PYTHON_BIN" - "$port" <<'PY' >/dev/null 2>&1
+import socket
+import sys
+
+port = int(sys.argv[1])
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+try:
+    sock.bind(("0.0.0.0", port))
+except OSError:
+    raise SystemExit(1)
+finally:
+    sock.close()
+PY
+}
+
+select_available_port() {
+    local candidate="$1"
+
+    while ! port_is_available "$candidate"; do
+        warn "TCP/$candidate is already in use; trying $((candidate + 1))."
+        candidate=$((candidate + 1))
+
+        (( candidate <= 65535 )) ||
+            die "No free TCP port found."
+    done
+
+    printf '%s\n' "$candidate"
+}
+
 log "Selecting an available HTTP port..."
-
-
-while ss -H -lnt 2>/dev/null |
-    awk '{print $4}' |
-    grep -Eq "(:|\])${PORT}$"; do
-
-    warn "TCP/$PORT is already in use; trying $((PORT + 1))."
-
-
-    PORT=$((PORT + 1))
-
-
-    (( PORT <= 65535 )) ||
-        die "No free TCP port found."
-
-done
-
-
+PORT="$(select_available_port "$PORT")"
 ok "HTTP port selected: $PORT"
 
 
@@ -359,7 +386,7 @@ fi
 #
 # /opt/idontScanner/
 #   install.sh
-#   idontScanner-3.0.5/
+#   idontScanner-3.0.6/
 #       requirements.txt
 #       app/main.py
 # ------------------------------------------------------------
@@ -367,11 +394,11 @@ fi
 if [[ -z "$SOURCE_DIR" && -n "$SCRIPT_DIR" ]]; then
 
     if [[ \
-        -f "$SCRIPT_DIR/idontScanner-3.0.5/requirements.txt" &&
-        -f "$SCRIPT_DIR/idontScanner-3.0.5/app/main.py"
+        -f "$SCRIPT_DIR/idontScanner-3.0.6/requirements.txt" &&
+        -f "$SCRIPT_DIR/idontScanner-3.0.6/app/main.py"
     ]]; then
 
-        SOURCE_DIR="$SCRIPT_DIR/idontScanner-3.0.5"
+        SOURCE_DIR="$SCRIPT_DIR/idontScanner-3.0.6"
 
     fi
 
@@ -835,7 +862,8 @@ unset ADMIN_PASS2
 # Environment
 # ============================================================
 
-cat > "$APP_DIR/.env" <<EOF
+write_environment_file() {
+    cat > "$APP_DIR/.env" <<EOF
 IDONTSCANNER_VERSION=$VERSION
 IDONTSCANNER_SECRET=$SECRET
 IDONTSCANNER_HOST=0.0.0.0
@@ -844,8 +872,51 @@ IDONTSCANNER_TIMEOUT=4.0
 IDONTSCANNER_DB_PATH=$DATA_DIR/idontscanner.db
 EOF
 
+    chmod 600 "$APP_DIR/.env"
+}
 
-chmod 600 "$APP_DIR/.env"
+write_service_file() {
+    cat > "/etc/systemd/system/${SERVICE}.service" <<EOF
+[Unit]
+Description=idontScanner Web Panel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+User=$SYSTEM_USER
+Group=$SYSTEM_USER
+
+WorkingDirectory=$APP_DIR
+
+EnvironmentFile=$APP_DIR/.env
+
+ExecStart=$APP_DIR/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+
+Restart=on-failure
+RestartSec=3
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+ProtectSystem=strict
+ProtectHome=true
+
+ReadWritePaths=$APP_DIR $DATA_DIR $LOG_DIR
+
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    chmod 644 "/etc/systemd/system/${SERVICE}.service"
+}
+
+
+write_environment_file
 
 
 # ============================================================
@@ -960,45 +1031,7 @@ chmod 600 "$APP_DIR/.env"
 log "Installing systemd service..."
 
 
-cat > "/etc/systemd/system/${SERVICE}.service" <<EOF
-[Unit]
-Description=idontScanner Web Panel
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-
-User=$SYSTEM_USER
-Group=$SYSTEM_USER
-
-WorkingDirectory=$APP_DIR
-
-EnvironmentFile=$APP_DIR/.env
-
-ExecStart=$APP_DIR/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
-
-Restart=on-failure
-RestartSec=3
-
-NoNewPrivileges=true
-PrivateTmp=true
-
-ProtectSystem=strict
-ProtectHome=true
-
-ReadWritePaths=$APP_DIR $DATA_DIR $LOG_DIR
-
-RestrictSUIDSGID=true
-LockPersonality=true
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-
-chmod 644 \
-    "/etc/systemd/system/${SERVICE}.service"
+write_service_file
 
 
 # ============================================================
@@ -1031,32 +1064,56 @@ systemctl enable \
     >/dev/null
 
 
-systemctl restart \
-    "$SERVICE"
-
-
-sleep 2
-
-
 # ============================================================
-# Service check
+# Start service
 # ============================================================
 
-if ! systemctl is-active --quiet "$SERVICE"; then
+start_service_with_port_retry() {
+    local attempts=0
 
-    journalctl \
-        -u "$SERVICE" \
-        -n 100 \
-        --no-pager \
-        || true
+    while (( attempts < 10 )); do
+        attempts=$((attempts + 1))
 
+        # Re-check immediately before systemd starts uvicorn.
+        if ! port_is_available "$PORT"; then
+            warn "TCP/$PORT became unavailable before startup; selecting another port."
+            PORT="$(select_available_port $((PORT + 1)))"
 
+            write_environment_file
+            write_service_file
+            systemctl daemon-reload
+        fi
+
+        systemctl restart "$SERVICE"
+        sleep 2
+
+        if systemctl is-active --quiet "$SERVICE"; then
+            return 0
+        fi
+
+        if journalctl -u "$SERVICE" -n 40 --no-pager 2>/dev/null |
+            grep -Eq "address already in use|Errno 98|EADDRINUSE"; then
+            warn "TCP/$PORT was claimed during startup; selecting another port."
+            PORT="$(select_available_port $((PORT + 1)))"
+
+            write_environment_file
+            write_service_file
+            systemctl daemon-reload
+            continue
+        fi
+
+        return 1
+    done
+
+    return 1
+}
+
+if ! start_service_with_port_retry; then
+    journalctl -u "$SERVICE" -n 100 --no-pager || true
     die "Service failed to start."
-
 fi
 
-
-ok "idontScanner service is running."
+ok "idontScanner service is running on TCP/$PORT."
 
 
 # ============================================================
