@@ -1,3 +1,10 @@
+# v3.0.4
+
+- Fixed Custom IP behavior: the 65 domain targets always use their normal VPS-resolved DNS/TLS scan path.
+- Custom IP is now an additional raw IP target and never overrides the 65 domain targets.
+- Custom IP results use ICMP with the existing TCP/443 reachability fallback and do not perform TLS or certificate inspection.
+- Scanner UI clearly separates the optional Custom IP result from the domain results.
+
 # Changelog
 
 ## v3.0.3
