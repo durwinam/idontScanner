@@ -13,7 +13,7 @@
     <div class="side-head">
       <a class="brand" href="{{ base }}/dashboard/">
         <span class="logo">{% include 'icons/radar.svg' %}</span>
-        <span><b>idontScanner</b><small>v2.1.0 · Diagnostics</small></span>
+        <span><b>idontScanner</b><small>{{ app_version }} · Diagnostics</small></span>
       </a>
       <button class="menu-close" id="menuClose" aria-label="Close menu">{% include 'icons/x.svg' %}</button>
     </div>
@@ -28,6 +28,7 @@
         <a class="nav-sub" href="{{ base }}/scanner/?mode=cdn">{% include 'icons/cloud.svg' %} CDN Diagnostics</a>
         <a class="nav-sub" href="{{ base }}/connection/">{% include 'icons/target.svg' %} Connection Tester</a>
         <a class="nav-sub" href="{{ base }}/speed-test/">{% include 'icons/activity.svg' %} VPS Speed Test</a>
+        <a class="nav-sub {% if active=='check_host' %}active{% endif %}" href="{{ base }}/check-host/">{% include 'icons/globe.svg' %} Check Host</a>
       </div>
       <a class="nav-item {% if active=='history' %}active{% endif %}" href="{{ base }}/history/">{% include 'icons/history.svg' %}<span>History</span></a>
       <a class="nav-item {% if active=='domains' %}active{% endif %}" href="{{ base }}/domains/">{% include 'icons/globe.svg' %}<span>Domains</span></a>
@@ -43,6 +44,11 @@
   </aside>
   <div class="mobile-overlay" id="overlay"></div>
   <main class="main">
+    <div class="update-notice hidden" id="updateNotice" role="status" aria-live="polite">
+      <div class="update-notice-icon">{% include 'icons/download.svg' %}</div>
+      <div><b id="updateNoticeTitle">New update available</b><span id="updateNoticeText">A newer idontScanner version is available.</span></div>
+      <div class="update-notice-actions"><span>Run: <code>sudo idontScanner update</code></span><button type="button" id="updateNoticeClose" aria-label="Close">{% include 'icons/x.svg' %}</button></div>
+    </div>
     <header class="topbar glass">
       <button class="hamburger" id="menuOpen" aria-label="Open menu">{% include 'icons/menu.svg' %}</button>
       <div class="crumb">{% block crumb %}Dashboard{% endblock %}</div>
@@ -51,8 +57,9 @@
     {% block content %}{% endblock %}
   </main>
 </div>
-<script>window.IDONT={base:{{base|tojson}},csrf:{{csrf|tojson}},username:{{username|tojson}}}</script>
+<script>window.IDONT={base:{{base|tojson}},csrf:{{csrf|tojson}},username:{{username|tojson}},version:{{app_version|tojson}}}</script>
 <script src="{{base}}/static/app.js"></script>
+<script src="{{base}}/static/update_notice.js"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

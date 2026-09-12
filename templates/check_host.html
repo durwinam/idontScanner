@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Check Host — idontScanner{% endblock %}
+{% block crumb %}Check Host{% endblock %}
+{% block content %}
+<section class="page-head">
+  <div>
+    <span class="eyebrow">GLOBAL NETWORK DIAGNOSTICS</span>
+    <h1>Check Host</h1>
+    <p>Run Ping, HTTP, TCP, UDP, DNS, or local host information checks through Check-Host nodes.</p>
+  </div>
+</section>
+
+<section class="panel glass check-host-hero">
+  <div class="check-host-brand">
+    <span class="section-icon section-icon--cyan">{% include 'icons/globe.svg' %}</span>
+    <div><h2>Hostname or IP address</h2><span class="muted">Global checks from multiple independent locations.</span></div>
+  </div>
+  <div class="check-host-input-row">
+    <input id="checkHostTarget" autocomplete="off" spellcheck="false" placeholder="example.com or 1.1.1.1">
+    <button class="primary" id="checkHostRun" type="button">{% include 'icons/radar.svg' %}<span>START CHECK</span></button>
+  </div>
+  <div class="check-host-modes" role="tablist">
+    <button class="check-mode active" data-type="info" type="button">{% include 'icons/info.svg' %} Info</button>
+    <button class="check-mode" data-type="ping" type="button">{% include 'icons/activity.svg' %} Ping</button>
+    <button class="check-mode" data-type="http" type="button">{% include 'icons/globe.svg' %} HTTP</button>
+    <button class="check-mode" data-type="tcp" type="button">{% include 'icons/network.svg' %} TCP Port</button>
+    <button class="check-mode" data-type="udp" type="button">{% include 'icons/network.svg' %} UDP Port</button>
+    <button class="check-mode" data-type="dns" type="button">{% include 'icons/dns.svg' %} DNS</button>
+  </div>
+  <div class="check-host-port hidden" id="checkHostPortWrap"><label>Port<input id="checkHostPort" inputmode="numeric" placeholder="443"></label></div>
+  <div class="check-host-state" id="checkHostState">Ready.</div>
+</section>
+
+<section class="check-host-summary hidden" id="checkHostSummary">
+  <article class="check-summary-main glass"><span>GLOBAL STATUS</span><strong id="checkScore">—</strong><small id="checkSummaryText">—</small></article>
+  <article class="check-summary-card glass"><span>NODES</span><strong id="checkNodes">—</strong><small id="checkOnline">—</small></article>
+  <article class="check-summary-card glass"><span>AVERAGE</span><strong id="checkAverage">—</strong><small>ms</small></article>
+</section>
+
+<section class="panel glass check-host-results" id="checkHostResults">
+  <div class="panel-head"><div><span class="eyebrow">NODE RESULTS</span><h2>Waiting for a check</h2></div><a id="checkHostPermanent" class="text-link hidden" target="_blank" rel="noopener noreferrer">Permanent report</a></div>
+  <div id="checkHostTable" class="check-host-table"><div class="empty">Enter a hostname or IP and start a check.</div></div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ base }}/static/check_host.js"></script>{% endblock %}

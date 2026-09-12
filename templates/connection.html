@@ -62,6 +62,23 @@
 
   <div id="connectionResult" class="detail-card empty">No test yet.</div>
 </section>
+  <section class="connection-quality-card glass" id="connectionQuality">
+    <div class="panel-head">
+      <div>
+        <span class="eyebrow">SMART CONNECTION</span>
+        <h2>Connection Quality</h2>
+        <span class="muted">Download, upload, latency, and jitter measured directly from this VPS.</span>
+      </div>
+    </div>
+    <div class="connection-quality-grid">
+      <article class="quality-metric"><span>DOWNLOAD</span><strong id="qualityDownload">—</strong><small>Mbps</small></article>
+      <article class="quality-metric"><span>UPLOAD</span><strong id="qualityUpload">—</strong><small>Mbps</small></article>
+      <article class="quality-metric"><span>LATENCY</span><strong id="qualityLatency">—</strong><small>ms</small></article>
+      <article class="quality-metric"><span>JITTER</span><strong id="qualityJitter">—</strong><small>ms</small></article>
+    </div>
+    <p class="muted quality-note" id="qualityNote">The quality check runs as a bounded direct network measurement. It does not route service traffic through the supplied configuration.</p>
+  </section>
+
 {% endblock %}
 
 {% block scripts %}
