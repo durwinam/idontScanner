@@ -1,5 +1,13 @@
 # Changelog
 
+## v3.0.2
+
+- Fixed Check Host mobile layout overflow so all diagnostic controls remain inside the viewport.
+- Improved responsive sizing for node-group and check-mode controls.
+- Kept Custom IP scanner mode strictly ICMP/raw-ping based; DNS, TCP, TLS, SNI, and certificate checks remain disabled in this mode.
+- Clarified raw-ping behavior when the target does not return ICMP replies.
+
+
 ## v3.0.1
 
 - Added an internal Check Host workspace with Info, Ping, HTTP, TCP Port, UDP Port, and DNS checks through Check-Host global nodes.
