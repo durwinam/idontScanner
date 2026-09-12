@@ -1,6 +1,6 @@
 # Changelog
 
-## v3.0.0
+## v3.0.1
 
 - Added an internal Check Host workspace with Info, Ping, HTTP, TCP Port, UDP Port, and DNS checks through Check-Host global nodes.
 - Added global node result cards with status, latency, packet loss, DNS records, HTTP status, and permanent reports.
@@ -8,7 +8,7 @@
 - Preserved Custom IP as a destination override across all enabled Domain Scanner targets while keeping each scanned domain as SNI.
 - Added non-blocking web update notifications with current and latest versions.
 - Hardened the terminal updater and CLI with updater self-recovery and safe version comparison.
-- Version is now consistently reported as v3.0.0 in the web panel, installer, and CLI.
+- Version is now consistently reported as v3.0.1 in the web panel, installer, and CLI.
 
 # Changelog
 
