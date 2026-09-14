@@ -40,7 +40,7 @@ function setResultRow(row, data) {
     latency.textContent = data.latency_ms != null ? `${data.latency_ms} ms` : "—";
     tls.textContent = data.mode === "raw_ping"
         ? (data.reachability === "tcp_fallback" ? "ICMP BLOCKED · TCP 443" : "RAW ICMP")
-        : (data.tls_version || "—");
+        : `${data.tls_version || "—"}${data.score != null ? ` · ${data.score}/100` : ""}`;
     row.dataset.result = JSON.stringify(data);
 }
 
@@ -122,8 +122,8 @@ document.querySelector("#scanBtn")?.addEventListener("click", async (event) => {
     }
 
     state.textContent = customEnabled
-        ? "Scanning 65 domains normally and checking the custom IP separately…"
-        : "Scanning real TLS connections…";
+        ? "Scanning 100 domains normally and checking the custom IP separately…"
+        : "Scanning 100 real TLS targets…";
 
     document.querySelectorAll(".result-row").forEach((row) => {
         row.querySelector(".status").className = "status testing";

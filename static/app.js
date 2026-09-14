@@ -18,3 +18,12 @@ function openMenu() {
 $("#menuOpen")?.addEventListener("click", openMenu);
 $("#menuClose")?.addEventListener("click", closeMenu);
 overlay?.addEventListener("click", closeMenu);
+
+
+(function bootLoader(){
+    const loader=document.getElementById("appBootLoader");
+    if(!loader) return;
+    const hide=()=>{ loader.classList.add("is-ready"); setTimeout(()=>loader.remove(),520); };
+    if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",()=>requestAnimationFrame(hide),{once:true});
+    else requestAnimationFrame(hide);
+})();
