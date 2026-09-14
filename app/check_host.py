@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import ipaddress
 import json
 import re
@@ -13,7 +14,7 @@ import urllib.request
 from typing import Any
 
 API_BASE = "https://check-host.net"
-USER_AGENT = "idontScanner-CheckHost/3.5.0"
+USER_AGENT = "idontScanner-CheckHost/3.5.8"
 MAX_NODES = 15
 IRAN_NODES = (
     "ir1.node.check-host.net",
@@ -227,6 +228,70 @@ def normalize_results(check_type: str, raw: dict[str, Any], nodes: dict[str, Any
     }
 
 
+def _ip_geo(ip: str) -> dict[str, Any] | None:
+    """Best-effort target IP enrichment, shaped like Check-Host's IP info."""
+    try:
+        request = urllib.request.Request(
+            f"https://ipwho.is/{urllib.parse.quote(ip, safe=':')}",
+            headers={"Accept": "application/json", "User-Agent": "idontScanner-CheckHost/3.5.8"},
+        )
+        with urllib.request.urlopen(request, timeout=2.5) as response:
+            data = json.loads(response.read(32_000).decode("utf-8", "replace"))
+        if not data.get("success", True):
+            return None
+
+        connection = data.get("connection") or {}
+        security = data.get("security") or {}
+        country_code = str(data.get("country_code") or "").upper()
+        country = data.get("country")
+        region = data.get("region")
+        city = data.get("city")
+        isp = connection.get("isp") or connection.get("org")
+        org = connection.get("org") or connection.get("isp")
+        asn = connection.get("asn") or connection.get("asn_number")
+        if isinstance(asn, int):
+            asn = f"AS{asn}"
+        elif asn and not str(asn).upper().startswith("AS"):
+            asn = f"AS{asn}"
+
+        connection_type = (
+            connection.get("connection_type")
+            or connection.get("type")
+            or connection.get("network_type")
+        )
+        hosting = security.get("hosting")
+        if isinstance(hosting, str):
+            hosting = hosting.lower() == "true"
+
+        if hosting is True:
+            network_type = "Hosting / Data Center"
+        elif connection_type:
+            network_type = str(connection_type)
+        elif security.get("vpn") or security.get("isVpn"):
+            network_type = "VPN / Hosting"
+        else:
+            network_type = "Network / ISP"
+
+        return {
+            "ip": ip,
+            "country_code": country_code,
+            "country": country,
+            "region": region,
+            "city": city,
+            "location": ", ".join(x for x in [city, region, country] if x) or None,
+            "isp": isp,
+            "organization": org,
+            "asn": asn,
+            "network_type": network_type,
+            "hosting": hosting,
+            "domain": connection.get("domain"),
+            "latitude": data.get("latitude"),
+            "longitude": data.get("longitude"),
+        }
+    except Exception:
+        return None
+
+
 def local_info(target: str) -> dict[str, Any]:
     target = validate_target(target)
     hostname = target
@@ -244,10 +309,20 @@ def local_info(target: str) -> dict[str, Any]:
         except (OSError, socket.herror):
             reverse.append({"ip": ip, "ptr": None})
 
+    # Enrich only the first few unique addresses so the Info view stays fast.
+    geo_ips = ips[:4]
+    geo: list[dict[str, Any]] = []
+    if geo_ips:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(4, len(geo_ips))) as pool:
+            for item in pool.map(_ip_geo, geo_ips):
+                if item:
+                    geo.append(item)
+
     return {
         "target": target,
         "hostname": hostname,
         "ips": ips,
         "reverse_dns": reverse,
         "dns_ms": round(dns_ms, 1),
+        "geo": geo,
     }
