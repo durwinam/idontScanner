@@ -64,7 +64,7 @@ sudo bash install.sh --fresh
 ---
 
 <p align="center">
-  <img src="static/logo/IMG_0397.jpeg" alt="idontScanner Logo" width="420">
+  <img src="static/logo/IMG_0397.jpg" alt="idontScanner Logo" width="420">
 </p>
 
 ## 🔄 Update بدون نصب مجدد
