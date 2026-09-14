@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import csv
 import io
+import gzip
 import json
 import re
 import shutil
@@ -21,10 +22,13 @@ import zipfile
 from pathlib import Path
 
 COUNT_DEFAULT = 3000
-USER_AGENT = "idontScanner-target-catalog/3.5.8"
+USER_AGENT = "idontScanner-target-catalog/3.5.9"
 
 SOURCES = [
+    # Prefer the official ranking, then GitHub mirrors/cache endpoints that
+    # are often reachable when the original provider is blocked on a VPS.
     ("tranco", "https://tranco-list.eu/top-1m.csv.zip", "zip_rank_domain"),
+    ("tranco_cache", "https://raw.githubusercontent.com/wangmm001/tranco-top1m-cache/main/data/current.csv.gz", "gzip_rank_domain"),
     ("umbrella", "https://s3-us-west-1.amazonaws.com/umbrella-static/top-1m.csv.zip", "zip_rank_domain"),
     ("majestic", "https://downloads.majestic.com/majestic_million.csv", "majestic_csv"),
     ("tranco_snapshot", "https://raw.githubusercontent.com/1xyz/tranco/main/data/tranco_top_5K.txt", "lines"),
@@ -114,6 +118,16 @@ def parse_zip_rank_domain(blob: bytes, count: int) -> list[str]:
     return _unique(domains, count)
 
 
+def parse_gzip_rank_domain(blob: bytes, count: int) -> list[str]:
+    text = gzip.decompress(blob).decode("utf-8", "replace")
+    domains: list[str] = []
+    for row in csv.reader(io.StringIO(text)):
+        if len(row) < 2:
+            continue
+        domains.append(row[1])
+    return _unique(domains, count)
+
+
 def parse_majestic(blob: bytes, count: int) -> list[str]:
     text = blob.decode("utf-8", "replace")
     reader = csv.reader(io.StringIO(text))
@@ -139,6 +153,8 @@ def parse_lines(blob: bytes, count: int) -> list[str]:
 def parse(blob: bytes, parser: str, count: int) -> list[str]:
     if parser == "zip_rank_domain":
         return parse_zip_rank_domain(blob, count)
+    if parser == "gzip_rank_domain":
+        return parse_gzip_rank_domain(blob, count)
     if parser == "majestic_csv":
         return parse_majestic(blob, count)
     return parse_lines(blob, count)
