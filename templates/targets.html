@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}Find Target — idontScanner{% endblock %}
+{% block crumb %}Find Target{% endblock %}
+{% block content %}
+<section class="page-head target-page-head">
+  <div>
+    <span class="eyebrow">TARGET BENCHMARK</span>
+    <h1>Find Target</h1>
+    <p data-i18n="findTargetIntro">۳۰۰۰ تارگت تمیز و پایدار به‌صورت خودکار آماده می‌شوند؛ نمای اصلی خلوت می‌ماند و جزئیات فقط هنگام نیاز نمایش داده می‌شود.</p>
+  </div>
+  <button class="primary" id="runBenchmark">{% include 'icons/radar.svg' %}<span data-i18n="runBenchmark">Find targets</span></button>
+</section>
+
+<section class="panel glass benchmark-panel">
+  <div class="panel-head">
+    <div>
+      <h2 data-i18n="targetBenchmark">Target benchmark</h2>
+      <span class="muted" id="benchmarkState" data-i18n="loadingCatalog">Loading benchmark catalog…</span>
+    </div>
+    <div class="target-catalog-status" id="targetCatalogStatus">
+      <span class="catalog-dot"></span><b id="targetCountBadge">0 / 3,000</b><small>benchmark targets</small>
+    </div>
+  </div>
+
+  <div class="benchmark-toolbar">
+    <div class="benchmark-toolbar-group">
+      <span class="toolbar-label" data-i18n="rankingPreference">Ranking</span>
+      <div class="custom-select" data-select="ranking">
+        <button type="button" class="select-trigger"><span>Balanced</span><b>⌄</b></button>
+        <div class="select-menu">
+          <button type="button" data-value="balanced" class="selected">✓ <span>Balanced</span></button>
+          <button type="button" data-value="latency"><span>Low latency</span></button>
+          <button type="button" data-value="tls"><span>TLS compatibility</span></button>
+          <button type="button" data-value="stability"><span>Stability</span></button>
+        </div>
+      </div>
+    </div>
+    <div class="benchmark-toolbar-group">
+      <span class="toolbar-label" data-i18n="resultsCount">Results</span>
+      <div class="custom-select" data-select="limit">
+        <button type="button" class="select-trigger"><span>15</span><b>⌄</b></button>
+        <div class="select-menu">
+          <button type="button" data-value="15" class="selected"><span>15</span></button>
+          <button type="button" data-value="30"><span>30</span></button>
+        </div>
+      </div>
+    </div>
+    <button class="secondary compact" id="addCustomTargets" type="button">{% include 'icons/plus.svg' %}<span data-i18n="customTargets">Custom targets</span><span id="customCount">0/20</span></button>
+  </div>
+
+  <div class="benchmark-progress"><div class="benchmark-progress-bar" id="benchmarkProgress"></div></div>
+
+  <details class="advanced-targets">
+    <summary><span data-i18n="advancedOptions">Advanced target options</span><span data-i18n="automaticHidden">3000 automatic targets stay hidden</span></summary>
+    <div class="advanced-targets-body">
+      <p class="muted" data-i18n="catalogManaged">The benchmark catalog is managed automatically. Only your optional custom targets are editable here.</p>
+      <textarea id="customTargetList" spellcheck="false" placeholder="example.com\ncdn.example.com"></textarea>
+      <div class="target-editor-footer"><span data-i18n="customLimit">Custom targets are limited to 20.</span><button class="secondary" id="saveCustomList" type="button">Save custom targets</button></div>
+    </div>
+  </details>
+</section>
+
+<section class="panel glass best-targets-panel">
+  <div class="panel-head">
+    <div>
+      <h2 data-i18n="bestPerforming">Best performing targets</h2>
+      <span class="muted" data-i18n="bestPerformingHint">Only targets actually tested before the 30-second deadline are ranked. Alternate SNI values are validated against the target certificate. Use the three-dot button for measured VPS and Iran-side diagnostics.</span>
+    </div>
+  </div>
+  <div id="benchmarkResults" class="benchmark-results"></div>
+</section>
+
+<div class="target-details-modal" id="targetDetailsModal" aria-hidden="true"><div class="target-details-card glass"><button class="target-details-close" id="closeTargetDetails" type="button">×</button><div id="targetDetailsBody"></div></div></div>
+{% endblock %}
+{% block scripts %}<script src="{{ base }}/static/targets.js"></script>{% endblock %}

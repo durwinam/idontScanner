@@ -8,6 +8,15 @@
   <link rel="stylesheet" href="{{ base }}/static/app.css">
 </head>
 <body>
+<div class="app-boot-loader" id="appBootLoader" aria-hidden="false">
+  <div class="boot-orbit" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="boot-brand">
+    <span class="boot-logo">{% include 'icons/radar.svg' %}</span>
+    <strong>idontScanner</strong>
+    <small>Secure diagnostics</small>
+  </div>
+  <div class="boot-progress"><span></span></div>
+</div>
 <div class="app-shell">
   <aside class="sidebar" id="sidebar">
     <div class="side-head">
@@ -25,6 +34,7 @@
         <a class="nav-item {% if active=='scanner' %}active{% endif %}" href="{{ base }}/scanner/">{% include 'icons/radar.svg' %}<span>Scanner</span><em>›</em></a>
         <a class="nav-sub" href="{{ base }}/scanner/?mode=sni">{% include 'icons/target.svg' %} SNI / TLS Check</a>
         <a class="nav-sub" href="{{ base }}/scanner/?mode=domain">{% include 'icons/globe.svg' %} Domain Scanner</a>
+        <a class="nav-sub" href="{{ base }}/targets/">{% include 'icons/target.svg' %} Find Target</a>
         <a class="nav-sub" href="{{ base }}/scanner/?mode=cdn">{% include 'icons/cloud.svg' %} CDN Diagnostics</a>
         <a class="nav-sub" href="{{ base }}/connection/">{% include 'icons/target.svg' %} Connection Tester</a>
         <a class="nav-sub" href="{{ base }}/speed-test/">{% include 'icons/activity.svg' %} VPS Speed Test</a>
@@ -52,13 +62,15 @@
     <header class="topbar glass">
       <button class="hamburger" id="menuOpen" aria-label="Open menu">{% include 'icons/menu.svg' %}</button>
       <div class="crumb">{% block crumb %}Dashboard{% endblock %}</div>
-      <div class="top-user"><span class="avatar">{{ username[:1]|upper }}</span><span class="desktop-only">{{ username }}</span></div>
+      <div class="top-actions"><button type="button" class="top-control" id="langToggle">FA</button><button type="button" class="top-control" id="themeToggle" aria-label="Theme">◐</button><div class="top-user"><span class="avatar">{{ username[:1]|upper }}</span><span class="desktop-only">{{ username }}</span></div></div>
     </header>
     {% block content %}{% endblock %}
-  </main>
+  <footer class="app-footer"><div class="footer-social"><a href="https://github.com/durwinam/idontScanner" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .7A11.3 11.3 0 0 0 8.43 22.77c.57.1.78-.25.78-.55v-2.17c-3.18.69-3.85-1.53-3.85-1.53-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.67 1.25 3.32.96.1-.74.4-1.25.73-1.54-2.54-.29-5.2-1.27-5.2-5.66 0-1.25.45-2.28 1.18-3.08-.12-.29-.51-1.46.11-3.04 0 0 .96-.31 3.13 1.18a10.9 10.9 0 0 1 5.7 0c2.17-1.49 3.13-1.18 3.13-1.18.62 1.58.23 2.75.11 3.04.73.8 1.18 1.83 1.18 3.08 0 4.4-2.67 5.36-5.21 5.64.41.35.78 1.05.78 2.12v3.14c0 .3.21.65.79.54A11.3 11.3 0 0 0 12 .7Z"/></svg></a><a href="https://t.me/idontproject" target="_blank" rel="noopener noreferrer" aria-label="Telegram"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.8 3.3 18.7 20c-.23 1.18-.87 1.47-1.77.92l-4.9-3.61-2.36 2.27c-.26.26-.48.48-.98.48l.35-4.99 9.1-8.22c.4-.35-.09-.55-.62-.2L6.26 13.8 1.5 12.31c-1.04-.33-1.06-1.04.22-1.54L20.3 3.59c.86-.32 1.61.2 1.5-.29Z"/></svg></a></div><span data-i18n="creatorLabel">Creator</span> <b>durwinam</b><span class="footer-version">{{ app_version }}</span></footer>
+</main>
 </div>
 <script>window.IDONT={base:{{base|tojson}},csrf:{{csrf|tojson}},username:{{username|tojson}},version:{{app_version|tojson}}}</script>
 <script src="{{base}}/static/app.js"></script>
+<script src="{{base}}/static/i18n.js"></script>
 <script src="{{base}}/static/update_notice.js"></script>
 {% block scripts %}{% endblock %}
 </body>

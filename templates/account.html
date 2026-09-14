@@ -63,12 +63,12 @@
 
     <div id="sessions">
       {% for s in sessions %}
-      <div class="device-card">
+      <div class="device-card" data-session-id="{{ s.id }}">
         <div class="device-icon">{% include 'icons/devices.svg' %}</div>
         <div>
           <b>{{ s.device }}</b>
           <small>IP · {{ s.ip }}</small>
-          <small>{{ s.last_seen|int }}</small>
+          <small>{{ s.last_seen|int }}</small><button type="button" class="secondary session-revoke" data-session-id="{{ s.id }}">Revoke</button>
         </div>
       </div>
       {% else %}
