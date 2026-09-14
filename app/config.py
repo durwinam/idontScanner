@@ -5,6 +5,24 @@ import secrets
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent.parent
+
+# Load the local .env when the app is started outside systemd as well. This
+# keeps the SessionMiddleware secret stable across manual starts/restarts.
+_ENV_FILE = BASE / ".env"
+if _ENV_FILE.exists():
+    try:
+        for _line in _ENV_FILE.read_text(encoding="utf-8", errors="ignore").splitlines():
+            _line = _line.strip()
+            if not _line or _line.startswith("#") or "=" not in _line:
+                continue
+            _key, _value = _line.split("=", 1)
+            _key = _key.strip()
+            _value = _value.strip().strip('"').strip("'")
+            if _key and _key not in os.environ:
+                os.environ[_key] = _value
+    except OSError:
+        pass
+
 DATA_DIR = Path(os.getenv("IDONTSCANNER_DATA_DIR", str(BASE / "data")))
 DB_PATH = DATA_DIR / "idontscanner.db"
 BASE_PATH = ""
@@ -17,7 +35,7 @@ DEFAULT_PORT = 443
 APP_VERSION = (
     (BASE / "VERSION").read_text(encoding="utf-8").strip()
     if (BASE / "VERSION").exists()
-    else "v3.6.0"
+    else "v3.6.2"
 )
 UPDATE_VERSION_URL = "https://raw.githubusercontent.com/durwinam/idontScanner/main/VERSION"
 

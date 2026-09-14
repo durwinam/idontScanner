@@ -219,7 +219,7 @@ def certificate_sni_candidates(cert_san: str, original_host: str = "") -> list[s
             continue
         seen.add(name)
         candidates.append(name)
-        if len(candidates) >= 4:
+        if len(candidates) >= 10:
             break
     return candidates
 

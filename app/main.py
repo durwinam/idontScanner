@@ -87,7 +87,8 @@ app.add_middleware(
     session_cookie="idontscanner_session",
     https_only=False,
     same_site="lax",
-    max_age=3600,
+    max_age=86400,
+    path="/",
 )
 
 templates = Jinja2Templates(directory=str(BASE / "templates"))
@@ -608,7 +609,7 @@ async def _best_effort_isp(ip: str):
         return None
     def fetch():
         try:
-            req=urllib.request.Request(f"https://ipwho.is/{ip}", headers={"User-Agent":"idontScanner/3.6.0"})
+            req=urllib.request.Request(f"https://ipwho.is/{ip}", headers={"User-Agent":"idontScanner/3.6.2"})
             with urllib.request.urlopen(req, timeout=1.5) as r:
                 data=json.loads(r.read(12000).decode("utf-8","replace"))
             conn=data.get("connection") or {}
@@ -738,12 +739,15 @@ async def target_details(request: Request):
             if requested_sni and requested_sni != domain:
                 candidates = [requested_sni] + [x for x in candidates if x != requested_sni]
             else:
-                candidates = candidates[:4]
+                candidates = candidates[:10]
+            sni_candidates = []
             if candidates:
                 completed = await asyncio.gather(*(probe_sni(probe["ip"], c) for c in candidates), return_exceptions=True)
                 good = [x for x in completed if isinstance(x, dict) and x.get("status") == "ok" and x.get("sni_verified")]
-                if good:
-                    sni_probe = min(good, key=lambda x: float(x.get("sni_latency_ms") or 99999))
+                good.sort(key=lambda x: float(x.get("sni_latency_ms") or 99999))
+                sni_candidates = good[:10]
+                if sni_candidates:
+                    sni_probe = sni_candidates[0]
                     best_sni = sni_probe.get("sni") or best_sni
 
             vps_task = asyncio.to_thread(measure_target_path, domain, best_sni)
@@ -767,6 +771,7 @@ async def target_details(request: Request):
         "target": probe,
         "best_sni": best_sni,
         "sni": sni_probe,
+        "sni_candidates": sni_candidates,
         "vps": vps,
         "iran": iran,
         "upload_note": "Upload to an arbitrary target is not reported unless that target exposes a documented, safe upload endpoint. The number is never fabricated.",
