@@ -608,7 +608,7 @@ async def _best_effort_isp(ip: str):
         return None
     def fetch():
         try:
-            req=urllib.request.Request(f"https://ipwho.is/{ip}", headers={"User-Agent":"idontScanner/3.5.8"})
+            req=urllib.request.Request(f"https://ipwho.is/{ip}", headers={"User-Agent":"idontScanner/3.5.9"})
             with urllib.request.urlopen(req, timeout=1.5) as r:
                 data=json.loads(r.read(12000).decode("utf-8","replace"))
             conn=data.get("connection") or {}

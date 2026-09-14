@@ -14,7 +14,7 @@ import urllib.request
 from typing import Any
 
 API_BASE = "https://check-host.net"
-USER_AGENT = "idontScanner-CheckHost/3.5.8"
+USER_AGENT = "idontScanner-CheckHost/3.5.9"
 MAX_NODES = 15
 IRAN_NODES = (
     "ir1.node.check-host.net",
@@ -233,7 +233,7 @@ def _ip_geo(ip: str) -> dict[str, Any] | None:
     try:
         request = urllib.request.Request(
             f"https://ipwho.is/{urllib.parse.quote(ip, safe=':')}",
-            headers={"Accept": "application/json", "User-Agent": "idontScanner-CheckHost/3.5.8"},
+            headers={"Accept": "application/json", "User-Agent": "idontScanner-CheckHost/3.5.9"},
         )
         with urllib.request.urlopen(request, timeout=2.5) as response:
             data = json.loads(response.read(32_000).decode("utf-8", "replace"))
