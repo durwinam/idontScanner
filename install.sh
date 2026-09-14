@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 
 APP="idontScanner"
-VERSION="v3.5.7"
+VERSION="v3.5.8"
 SERVICE="idontscanner"
 
 APP_DIR="/opt/idontScanner"
@@ -387,21 +387,34 @@ fi
 #
 # /opt/idontScanner/
 #   install.sh
-#   idontScanner-3.5.7/
+#   idontScanner-3.5.8/
 #       requirements.txt
 #       app/main.py
 # ------------------------------------------------------------
 
 if [[ -z "$SOURCE_DIR" && -n "$SCRIPT_DIR" ]]; then
 
-    if [[ \
-        -f "$SCRIPT_DIR/idontScanner-3.5.7/requirements.txt" &&
-        -f "$SCRIPT_DIR/idontScanner-3.5.7/app/main.py"
-    ]]; then
+    while IFS= read -r candidate; do
 
-        SOURCE_DIR="$SCRIPT_DIR/idontScanner-3.5.7"
+        if [[ \
+            -f "$candidate/requirements.txt" &&
+            -f "$candidate/app/main.py"
+        ]]; then
 
-    fi
+            SOURCE_DIR="$candidate"
+            break
+
+        fi
+
+    done < <(
+        find "$SCRIPT_DIR" \
+            -mindepth 1 \
+            -maxdepth 2 \
+            -type d \
+            -name 'idontScanner-*' \
+            -print \
+            2>/dev/null
+    )
 
 fi
 

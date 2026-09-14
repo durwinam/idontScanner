@@ -1,4 +1,21 @@
-# v3.5.7
+# Changelog
+
+## v3.5.8 — In-place update + 3,000 target catalog
+
+- Upgrading from an existing idontScanner installation now refreshes the Find Target catalog to 3,000 domains without reinstalling the panel.
+- Persistent data, `.env`, database, port and virtual environment are preserved during update.
+- `sudo idontScanner update` refreshes the updater script before running the upgrade, so older installations can receive the new update logic directly.
+- `sudo bash /opt/idontScanner/update.sh` keeps the direct update path.
+- Target catalog sync runs after source replacement and before database migration/service restart.
+- Version bumped to `v3.5.8`.
+
+## v3.5.8 — Check Host final polish
+
+- Check Host → Info now enriches resolved domain/IP addresses with country, region, city, ISP, ASN, provider/datacenter and network type when available.
+- Global Check-Host nodes now render reliable SVG country flags instead of depending on platform emoji fonts.
+- Preserved the existing GitHub install/update flow and `idontScanner update` / `/opt/idontScanner/update.sh` behavior.
+
+# v3.5.8
 
 - Completed Persian/English UI coverage across the main dashboard, scanner, connection, settings, account, domains, Check Host, Speed Test and Find Target surfaces.
 - Fixed custom dropdown layering by rendering opened native-select menus in a viewport-level portal so they no longer disappear behind cards or panels.
