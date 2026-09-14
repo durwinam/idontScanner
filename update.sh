@@ -72,7 +72,28 @@ catalog_count() {
         printf '0\n'
         return
     fi
-    grep -E '^[[:alnum:]][[:alnum:].-]*\.[[:alpha:]][[:alpha:]]{2,}$' "$file" 2>/dev/null | sort -u | wc -l | tr -d ' '
+
+    # Count the same domains the Python catalog/runtime validator accepts.
+    # Do not use a shell regex here: it incorrectly rejects valid IDNA/punycode
+    # TLDs (for example xn--...) and made a real 3,000-line catalog appear as
+    # only ~2,300 domains during update.
+    if [[ -x "$APP_DIR/.venv/bin/python" && -f "$APP_DIR/tools/sync_target_catalog.py" ]]; then
+        "$APP_DIR/.venv/bin/python" - "$file" <<'PYCOUNT'
+import sys
+from pathlib import Path
+from tools.sync_target_catalog import valid_domain
+path = Path(sys.argv[1])
+seen = set()
+for raw in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+    d = raw.strip().lower().rstrip(".")
+    if valid_domain(d):
+        seen.add(d)
+print(len(seen))
+PYCOUNT
+        return
+    fi
+
+    awk 'NF {gsub(/\r/, ""); if ($0 ~ /^[^[:space:]\/:@]+\.[^[:space:]\/:@]+$/) print tolower($0)}' "$file" 2>/dev/null | sort -u | wc -l | tr -d ' '
 }
 
 refresh_catalog() {

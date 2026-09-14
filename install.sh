@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 
 APP="idontScanner"
-VERSION="v3.6.0"
+VERSION="v3.6.2"
 SERVICE="idontscanner"
 
 APP_DIR="/opt/idontScanner"
@@ -387,7 +387,7 @@ fi
 #
 # /opt/idontScanner/
 #   install.sh
-#   idontScanner-3.6.0/
+#   idontScanner-3.6.2/
 #       requirements.txt
 #       app/main.py
 # ------------------------------------------------------------

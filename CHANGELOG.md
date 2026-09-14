@@ -1,8 +1,12 @@
+## v3.6.2 — Release
+- Ranked up to 10 certificate-backed SNI candidates in Target details.
+- Based on the v3.6.1 source with the existing UI, loader, update flow, and 3,000-target catalog behavior retained.
+
 # Changelog
 
-## v3.6.0 — Release
+## v3.6.1 — Release
 
-- Version bumped to `v3.6.0`; v3.5.8 update hotfix behavior is retained.
+- Version bumped to `v3.6.1`; v3.5.8 update hotfix behavior is retained.
 - In-place update and 3,000-target catalog repair remain available without reinstalling the panel.
 
 ## v3.5.8 — In-place update + 3,000 target catalog
