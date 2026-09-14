@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 
 APP="idontScanner"
-VERSION="v3.0.7"
+VERSION="v3.5.7"
 SERVICE="idontscanner"
 
 APP_DIR="/opt/idontScanner"
@@ -19,6 +19,7 @@ green=$'\033[32m'
 yellow=$'\033[33m'
 red=$'\033[31m'
 reset=$'\033[0m'
+bold=$'\033[1m'
 
 
 log() {
@@ -386,7 +387,7 @@ fi
 #
 # /opt/idontScanner/
 #   install.sh
-#   idontScanner-3.0.7/
+#   idontScanner-3.5.7/
 #       requirements.txt
 #       app/main.py
 # ------------------------------------------------------------
@@ -394,11 +395,11 @@ fi
 if [[ -z "$SOURCE_DIR" && -n "$SCRIPT_DIR" ]]; then
 
     if [[ \
-        -f "$SCRIPT_DIR/idontScanner-3.0.7/requirements.txt" &&
-        -f "$SCRIPT_DIR/idontScanner-3.0.7/app/main.py"
+        -f "$SCRIPT_DIR/idontScanner-3.5.7/requirements.txt" &&
+        -f "$SCRIPT_DIR/idontScanner-3.5.7/app/main.py"
     ]]; then
 
-        SOURCE_DIR="$SCRIPT_DIR/idontScanner-3.0.7"
+        SOURCE_DIR="$SCRIPT_DIR/idontScanner-3.5.7"
 
     fi
 
@@ -564,6 +565,9 @@ mkdir -p \
     "$APP_DIR" \
     "$DATA_DIR" \
     "$LOG_DIR"
+
+# The service user must be able to create/replace the persistent target catalog.
+chown "$SYSTEM_USER:$SYSTEM_USER" "$DATA_DIR" "$LOG_DIR"
 
 
 # ============================================================
@@ -870,6 +874,7 @@ IDONTSCANNER_HOST=0.0.0.0
 IDONTSCANNER_PORT=$PORT
 IDONTSCANNER_TIMEOUT=4.0
 IDONTSCANNER_DB_PATH=$DATA_DIR/idontscanner.db
+IDONTSCANNER_DATA_DIR=$DATA_DIR
 EOF
 
     chmod 600 "$APP_DIR/.env"
@@ -915,6 +920,40 @@ EOF
     chmod 644 "/etc/systemd/system/${SERVICE}.service"
 }
 
+
+
+# ============================================================
+# Target benchmark catalog
+# ============================================================
+
+log "Preparing the 3,000-target benchmark catalog..."
+mkdir -p "$DATA_DIR"
+chown "$SYSTEM_USER:$SYSTEM_USER" "$DATA_DIR"
+catalog_ready=0
+if [[ -f "$APP_DIR/tools/sync_target_catalog.py" ]]; then
+    if runuser -u "$SYSTEM_USER" -- env PYTHONPATH="$APP_DIR" \
+        "$APP_DIR/.venv/bin/python" "$APP_DIR/tools/sync_target_catalog.py" \
+        --output "$DATA_DIR/target_catalog.txt" --count 3000; then
+        catalog_ready=1
+        ok "3,000 benchmark targets are ready."
+    else
+        warn "All benchmark catalog sources were unavailable. Installation will continue."
+    fi
+fi
+
+# Validate what is actually present. Never fail the installation just because
+# an external ranking provider is unreachable.
+if [[ -f "$DATA_DIR/target_catalog.txt" ]]; then
+    catalog_count="$(grep -E '^[[:alnum:]][[:alnum:].-]*\.[[:alpha:]]{2,}$' "$DATA_DIR/target_catalog.txt" 2>/dev/null | sort -u | wc -l | tr -d ' ')"
+else
+    catalog_count=0
+fi
+
+if (( catalog_count >= 3000 )); then
+    catalog_ready=1
+else
+    catalog_ready=0
+fi
 
 write_environment_file
 
@@ -1093,8 +1132,6 @@ start_service_with_port_retry() {
         if ! port_is_available "$PORT"; then
             warn "TCP/$PORT became unavailable before startup; selecting another port."
             PORT="$(select_available_port $((PORT + 1)))"
-
-            write_environment_file
             write_service_file
             systemctl daemon-reload
         fi
@@ -1104,7 +1141,6 @@ start_service_with_port_retry() {
 
         if systemctl is-active --quiet "$SERVICE"; then
             PORT="$(read_runtime_port "$PORT")"
-            write_environment_file
             return 0
         fi
 
@@ -1112,8 +1148,6 @@ start_service_with_port_retry() {
             grep -Eq "address already in use|Errno 98|EADDRINUSE"; then
             warn "TCP/$PORT was claimed during startup; selecting another port."
             PORT="$(select_available_port $((PORT + 1)))"
-
-            write_environment_file
             write_service_file
             systemctl daemon-reload
             continue
@@ -1246,5 +1280,13 @@ echo "============================================================"
 
 echo
 echo -e "${GREEN}idontScanner $VERSION is ready.${RESET}"
+
+if (( catalog_ready == 0 )); then
+    echo
+echo -e "${bold}${yellow}WARNING: The 3,000 benchmark domains were NOT prepared (${catalog_count}/3000).${reset}"
+echo -e "${bold}${yellow}Find Target will remain available, but its automatic 3,000-target catalog is incomplete.${reset}"
+echo -e "${yellow}You can retry later after restoring VPS DNS/outbound HTTPS, or run:${reset}"
+echo "  $APP_DIR/.venv/bin/python $APP_DIR/tools/sync_target_catalog.py --output $DATA_DIR/target_catalog.txt --count 3000"
+fi
 
 echo

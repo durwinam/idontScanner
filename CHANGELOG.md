@@ -1,84 +1,56 @@
-## v3.0.7
+# v3.5.7
 
-- Improved installer port detection and startup retry handling.
-- Automatically selects the next available TCP port when the preferred port is occupied.
-- Keeps the selected port synchronized across `.env`, systemd, health checks, UFW, and final installation output.
-- Improved installer robustness against port races during service startup.
+- Completed Persian/English UI coverage across the main dashboard, scanner, connection, settings, account, domains, Check Host, Speed Test and Find Target surfaces.
+- Fixed custom dropdown layering by rendering opened native-select menus in a viewport-level portal so they no longer disappear behind cards or panels.
+- Added a polished boot/loading screen for panel entry and a dedicated animated Deep Diagnostics loading state.
+- Refined Find Target rows to show only the useful at-a-glance signals: target, score, Host/SNI status, SNI and latency. Verbose TLS/ALPN/ISP data remains inside the three-dot details view.
+- Improved light-theme contrast for cards, menus, controls, diagnostics and Find Target results.
+- Preserved existing scanner, benchmark, SNI validation, catalog and Deep Diagnostics logic.
 
-# v3.0.7
+## v3.5.2
 
-## Telegram UX & diagnostics
-- Added a richer Telegram dashboard for Domain Scanner, Check Host, Smart Connection, VPS Speed, Server Status, History, Network Diagnostics, Scheduler, and Settings.
-- Added Premium custom emoji mappings supplied by the project owner, including the Lion and Sun Iran marker with a 🦁 fallback.
-- Added colored Telegram inline buttons throughout the bot.
-- Added Telegram Check Host flow with Global and six Iran nodes.
-- Added Smart Connection metrics for Download, Upload, Latency, and Jitter.
-- Added Telegram VPS network-quality testing with bounded measurements.
-- Added per-user target input flow for Check Host without exposing credentials.
+- Fixed Find Target presentation: the 3,000-domain benchmark catalog is loaded automatically and remains hidden from the main UI.
+- Replaced browser-native-looking controls with consistent glass dropdowns and compact responsive toolbar controls.
+- Added an authenticated benchmark-catalog API and runtime catalog recovery.
+- Added a Tranco snapshot fallback for installations where the official catalog endpoint is temporarily unreachable.
+- Kept the 30-second benchmark, ranking logic, SNI validation and Deep Diagnostics architecture unchanged.
+- Added on-demand Target Details via the three-dot action on Find Target results.
+- Added VPS-to-target TCP latency/jitter and bounded target HTTPS download measurement.
+- Added Iranian Check-Host node diagnostics for ping and HTTP response timing.
+- Upload throughput is reported only when a safe target-side upload endpoint exists; arbitrary site upload is never fabricated.
+- Hardened target throughput resolution to public IPv4 addresses to reduce SSRF risk.
 
-## Web panel
-- Preserved the existing 65-domain scanner behavior.
-- Custom IP remains an independent raw target and does not override domain resolution, TLS, or SNI scanning.
-- Versioning and installer paths are aligned on v3.0.7.
+## v3.4.9
 
-# v3.0.4
+- Added the 3,000-target Find Target benchmark with a hard 30-second deadline.
+- Added certificate-backed SNI candidate validation and ranking.
+- Added up to 20 persistent custom benchmark targets.
+- Improved ranking, host/TLS/SNI health signals, ISP enrichment for top results, and Top 15/30 output.
+- Restored and retained Host Check and VPS Speed Test.
+- Increased Domain Scanner to 100 configured targets.
+- Added session revoke controls and creator footer links.
 
-- Fixed Custom IP behavior: the 65 domain targets always use their normal VPS-resolved DNS/TLS scan path.
-- Custom IP is now an additional raw IP target and never overrides the 65 domain targets.
-- Custom IP results use ICMP with the existing TCP/443 reachability fallback and do not perform TLS or certificate inspection.
-- Scanner UI clearly separates the optional Custom IP result from the domain results.
+## v3.0.4
 
-# Changelog
-
-## v3.0.3
-
-- Added a TCP/443 reachability fallback for Custom IP diagnostics when ICMP receives no reply.
-- Custom IP remains a raw target; no TLS handshake or certificate inspection is performed in this mode.
-- Added the Lion and Sun flag asset for Iran node selection and Iran result rows in Check Host.
-
-## v3.0.3
-
-- Fixed Check Host mobile layout overflow so all diagnostic controls remain inside the viewport.
-- Improved responsive sizing for node-group and check-mode controls.
-- Kept Custom IP scanner mode strictly ICMP/raw-ping based; DNS, TCP, TLS, SNI, and certificate checks remain disabled in this mode.
-- Clarified raw-ping behavior when the target does not return ICMP replies.
-
+- Fixed Custom IP behavior and retained the 100-domain scanner path.
+- Added TCP/443 reachability fallback for raw Custom IP diagnostics.
+- Added the Iran node marker for Check Host.
 
 ## v3.0.1
 
-- Added an internal Check Host workspace with Info, Ping, HTTP, TCP Port, UDP Port, and DNS checks through Check-Host global nodes.
-- Added global node result cards with status, latency, packet loss, DNS records, HTTP status, and permanent reports.
-- Added Download, Upload, Latency, and Jitter to Smart Connection without changing the standalone VPS Speed Test naming.
-- Preserved Custom IP as a destination override across all enabled Domain Scanner targets while keeping each scanned domain as SNI.
-- Added non-blocking web update notifications with current and latest versions.
-- Hardened the terminal updater and CLI with updater self-recovery and safe version comparison.
-- Version is now consistently reported as v3.0.1 in the web panel, installer, and CLI.
-
-# Changelog
+- Added Check Host with global and Iran nodes.
+- Added Download, Upload, Latency, and Jitter to Smart Connection.
+- Added non-blocking web update notifications.
+- Hardened the terminal updater and CLI.
 
 ## v2.1.0
 
-- Added 65 curated domain targets while preserving the original 41.
-- Added Custom Ping Target for domain diagnostics with SNI preserved.
-- Added scan score and lightweight scan intelligence.
-- Added dedicated VPS Speed Test with animated progress UI.
-- Added VPS Speed Test to navigation and dashboard.
-- Added responsive glass UI for the new diagnostics.
-
-# Changelog
+- Added curated domain targets while preserving the original scanner behavior.
+- Added Custom Ping Target and scan score.
+- Added dedicated VPS Speed Test and responsive glass UI.
 
 ## v2.0.0
 
-### Dashboard enhancement
-- Added a realtime server resource monitor for CPU, memory and disk usage with circular gauges and rolling performance charts.
-- Added live uptime, load average, process count, network throughput and temperature observation when available.
-- Resource metrics are read directly from the VPS and refreshed without reloading the dashboard.
-
-
-- Modularized the application into configuration, persistence, scanning, security, scheduler, Telegram, and connection-diagnostic modules.
-- Added a standalone update workflow that preserves `.env` and local SQLite data.
-- Added `idontScanner update` to the management CLI.
-- Added direct `update.sh` execution for maintenance without reinstalling.
-- Added a one-command GitHub installation path through `install.sh`.
-- Kept the existing Web Panel, Scanner APIs, Telegram configuration, Scheduler, and 41 default TLS targets intact.
-- Standardized source formatting and shell scripting conventions.
+- Added realtime server resource monitoring.
+- Modularized persistence, scanning, security, scheduler, Telegram and connection diagnostics.
+- Added a standalone update workflow that preserves `.env` and SQLite data.

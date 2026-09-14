@@ -167,6 +167,16 @@ fi
 
 systemctl daemon-reload
 
+log "Refreshing the benchmark target catalog..."
+mkdir -p /var/lib/idontscanner
+chown idontscanner:idontscanner /var/lib/idontscanner
+if [[ -f "$APP_DIR/tools/sync_target_catalog.py" ]]; then
+    runuser -u idontscanner -- env PYTHONPATH="$APP_DIR" \
+        "$APP_DIR/.venv/bin/python" "$APP_DIR/tools/sync_target_catalog.py" \
+        --output /var/lib/idontscanner/target_catalog.txt --count 3000 \
+        || log "Target catalog refresh failed; preserving the previous catalog."
+fi
+
 log "Running database migrations..."
 runuser -u idontscanner -- env PYTHONPATH="$APP_DIR" \
     "$APP_DIR/.venv/bin/python" -c \
