@@ -65,6 +65,55 @@ health_check() {
     return 1
 }
 
+catalog_count() {
+    local file="/var/lib/idontscanner/target_catalog.txt"
+    if [[ ! -f "$file" ]]; then
+        printf '0\n'
+        return
+    fi
+    grep -E '^[[:alnum:]][[:alnum:].-]*\.[[:alpha:]][[:alpha:]]{2,}$' "$file" 2>/dev/null | sort -u | wc -l | tr -d ' '
+}
+
+refresh_catalog() {
+    local catalog="/var/lib/idontscanner/target_catalog.txt"
+    mkdir -p /var/lib/idontscanner
+    if id idontscanner >/dev/null 2>&1; then
+        chown idontscanner:idontscanner /var/lib/idontscanner
+    fi
+
+    local before
+    before="$(catalog_count)"
+    if (( before >= 3000 )); then
+        ok "Target catalog is already ready: ${before}/3000 domains."
+        return 0
+    fi
+
+    log "Refreshing the 3,000-target benchmark catalog (${before}/3000 currently available)..."
+    if [[ ! -x "$APP_DIR/.venv/bin/python" || ! -f "$APP_DIR/tools/sync_target_catalog.py" ]]; then
+        warn "Catalog sync files are not available in this installation."
+        return 1
+    fi
+
+    if runuser -u idontscanner -- env PYTHONPATH="$APP_DIR" \
+        "$APP_DIR/.venv/bin/python" "$APP_DIR/tools/sync_target_catalog.py" \
+        --output "$catalog" --count 3000; then
+        chown idontscanner:idontscanner "$catalog" "$catalog.meta.json" 2>/dev/null || true
+        local after
+        after="$(catalog_count)"
+        if (( after >= 3000 )); then
+            ok "3,000 benchmark targets are ready (${after}/3000)."
+            return 0
+        fi
+        warn "Catalog sync returned success but only ${after}/3000 valid domains are present."
+        return 1
+    fi
+
+    local after
+    after="$(catalog_count)"
+    warn "Target catalog refresh failed; ${after}/3000 domains remain available."
+    return 1
+}
+
 TMP_DIR="$(mktemp -d /tmp/idontscanner-update.XXXXXX)"
 BACKUP_DIR="$(mktemp -d /tmp/idontscanner-env.XXXXXX)"
 cleanup() {
@@ -110,7 +159,12 @@ version_is_newer() {
 }
 
 if [[ "$INSTALLED_VERSION" == "$LATEST_VERSION" ]]; then
-    ok "The installed version is already up to date."
+    ok "The application source is already at $LATEST_VERSION."
+    # Do not exit here: older installations may have an incomplete/missing
+    # 3,000-domain benchmark catalog. An update command must repair that
+    # state even when the application version itself is already current.
+    refresh_catalog || true
+    ok "No application files needed updating."
     exit 0
 fi
 
@@ -167,15 +221,7 @@ fi
 
 systemctl daemon-reload
 
-log "Refreshing the benchmark target catalog..."
-mkdir -p /var/lib/idontscanner
-chown idontscanner:idontscanner /var/lib/idontscanner
-if [[ -f "$APP_DIR/tools/sync_target_catalog.py" ]]; then
-    runuser -u idontscanner -- env PYTHONPATH="$APP_DIR" \
-        "$APP_DIR/.venv/bin/python" "$APP_DIR/tools/sync_target_catalog.py" \
-        --output /var/lib/idontscanner/target_catalog.txt --count 3000 \
-        || log "Target catalog refresh failed; preserving the previous catalog."
-fi
+refresh_catalog || log "Target catalog refresh failed; preserving the previous catalog."
 
 log "Running database migrations..."
 runuser -u idontscanner -- env PYTHONPATH="$APP_DIR" \

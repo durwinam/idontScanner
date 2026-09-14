@@ -1,5 +1,10 @@
 # Changelog
 
+## v3.5.9 — Release
+
+- Version bumped to `v3.5.9`; v3.5.8 update hotfix behavior is retained.
+- In-place update and 3,000-target catalog repair remain available without reinstalling the panel.
+
 ## v3.5.8 — In-place update + 3,000 target catalog
 
 - Upgrading from an existing idontScanner installation now refreshes the Find Target catalog to 3,000 domains without reinstalling the panel.
@@ -71,3 +76,7 @@
 - Added realtime server resource monitoring.
 - Modularized persistence, scanning, security, scheduler, Telegram and connection diagnostics.
 - Added a standalone update workflow that preserves `.env` and SQLite data.
+
+### v3.5.8 — Update hotfix
+- `sudo idontScanner update` and `/opt/idontScanner/update.sh` no longer exit early when the app version is already current; they also repair a missing/incomplete 3,000-domain target catalog.
+- Added a GitHub Tranco cache fallback for VPS networks where the official ranking endpoint is unreachable.
