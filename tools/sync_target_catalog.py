@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Build the Find Target benchmark catalog using multiple public sources.
 
 The installer must never fail only because an external ranking service is
