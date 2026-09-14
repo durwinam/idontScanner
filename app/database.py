@@ -6,7 +6,7 @@ import os
 import time
 import sqlite3
 
-from app.config import DATA_DIR, DB_PATH, DEFAULT_DOMAINS
+from app.config import DATA_DIR, DB_PATH, DEFAULT_DOMAINS, TARGET_CUSTOM_LIMIT
 
 def db():
     """Open a configured SQLite connection with foreign keys enabled."""
@@ -65,6 +65,12 @@ def init_db():
             error TEXT,
             FOREIGN KEY(scan_id) REFERENCES scans(id) ON DELETE CASCADE,
             FOREIGN KEY(domain_id) REFERENCES domains(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS benchmark_custom_targets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            domain TEXT UNIQUE NOT NULL,
+            created_at INTEGER NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS sessions (

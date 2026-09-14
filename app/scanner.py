@@ -181,6 +181,96 @@ def _tls_probe_sync(domain: str, connect_target: str | None = None):
                     pass
 
 
+
+def _normalize_dns_name(value: str) -> str:
+    value = (value or "").strip().lower().rstrip(".")
+    if not value or len(value) > 253 or "*" in value or "/" in value or ":" in value:
+        return ""
+    labels = value.split(".")
+    allowed = set("abcdefghijklmnopqrstuvwxyz0123456789-")
+    if len(labels) < 2:
+        return ""
+    if any(
+        not label
+        or len(label) > 63
+        or label.startswith("-")
+        or label.endswith("-")
+        or any(ch not in allowed for ch in label)
+        for label in labels
+    ):
+        return ""
+    return value
+
+
+def certificate_sni_candidates(cert_san: str, original_host: str = "") -> list[str]:
+    """Return concrete DNS SAN names that are valid SNI candidates.
+
+    Candidates are derived only from the certificate presented by the target.
+    Wildcard SANs are intentionally excluded because they are not concrete SNI
+    hostnames. The original host is excluded so the UI can distinguish an
+    alternate certificate-backed SNI from the direct host.
+    """
+    original = _normalize_dns_name(original_host)
+    seen = set()
+    candidates = []
+    for raw in (cert_san or "").split(","):
+        name = _normalize_dns_name(raw)
+        if not name or name == original or name in seen:
+            continue
+        seen.add(name)
+        candidates.append(name)
+        if len(candidates) >= 4:
+            break
+    return candidates
+
+
+def _probe_sni_sync(connect_ip: str, sni_host: str):
+    """Validate a certificate-backed SNI against a known target IP.
+
+    This is a normal HTTPS/TLS virtual-host diagnostic: TCP connects to the
+    target IP while the requested hostname is sent through TLS SNI and the
+    system trust store validates the resulting certificate/hostname.
+    """
+    started = time.perf_counter()
+    sock = None
+    tls_sock = None
+    try:
+        ipaddress.ip_address(connect_ip)
+        host = _normalize_dns_name(sni_host)
+        if not host:
+            raise ValueError("Invalid SNI hostname")
+        sock = socket.create_connection((connect_ip, DEFAULT_PORT), timeout=min(TIMEOUT, 2.5))
+        context = ssl.create_default_context()
+        context.set_alpn_protocols(["h2", "http/1.1"])
+        tls_sock = context.wrap_socket(sock, server_hostname=host)
+        details = peer_certificate_details(tls_sock)
+        return {
+            "status": "ok",
+            "sni": host,
+            "sni_latency_ms": round((time.perf_counter() - started) * 1000, 1),
+            "sni_tls_version": tls_sock.version(),
+            "sni_alpn": tls_sock.selected_alpn_protocol(),
+            "sni_cipher": tls_sock.cipher()[0] if tls_sock.cipher() else None,
+            "sni_cert_san": details["san"],
+            "sni_verified": True,
+            "error": None,
+        }
+    except ssl.SSLCertVerificationError as exc:
+        return {"status":"certificate_error","sni":sni_host,"sni_latency_ms":None,"sni_tls_version":None,"sni_alpn":None,"sni_verified":False,"error":str(exc)[:180]}
+    except (ssl.SSLError, socket.timeout, ConnectionError, OSError, ValueError) as exc:
+        return {"status":"failed","sni":sni_host,"sni_latency_ms":None,"sni_tls_version":None,"sni_alpn":None,"sni_verified":False,"error":str(exc)[:180]}
+    finally:
+        for candidate in (tls_sock, sock):
+            if candidate:
+                try:
+                    candidate.close()
+                except OSError:
+                    pass
+
+
+async def probe_sni(connect_ip: str, sni_host: str):
+    return await asyncio.to_thread(_probe_sni_sync, connect_ip, sni_host)
+
 def _raw_ping_sync(target: str):
     """Ping a validated raw IP with the system ICMP utility.
 
@@ -458,23 +548,26 @@ async def run_scan(connect_target: str | None = None):
             result_rows,
         )
 
-    results = [
-        {
+    results = []
+    for domain, result in pairs:
+        item = {
             "domain": domain["domain"],
             "label": domain["label"],
             "category": domain["category"],
             **result,
         }
-        for domain, result in pairs
-    ]
-    results.sort(
-        key=lambda item: (
-            item.get("status") != "ok",
-            item.get("latency_ms")
-            if item.get("latency_ms") is not None
-            else 999999,
-        )
-    )
+        latency = float(item.get("latency_ms") or 9999)
+        tls = item.get("tls_version") or ""
+        alpn = item.get("alpn") or ""
+        tls_score = 1.0 if tls == "TLSv1.3" else 0.85 if tls == "TLSv1.2" else 0.3
+        alpn_score = 1.0 if alpn == "h2" else 0.7 if alpn == "http/1.1" else 0.25
+        latency_score = max(0.0, min(1.0, 1.0 - latency / 500.0))
+        healthy = 1.0 if item.get("status") == "ok" else 0.0
+        item["host_ok"] = bool(item.get("tcp_ms") is not None and healthy)
+        item["sni_ok"] = bool(item.get("tls_version") and healthy)
+        item["score"] = round((healthy*.25 + latency_score*.35 + tls_score*.25 + alpn_score*.15) * 100, 1)
+        results.append(item)
+    results.sort(key=lambda item: (item.get("status") != "ok", -item.get("score", 0), item.get("latency_ms") if item.get("latency_ms") is not None else 999999))
 
     score = 0
     if pairs:

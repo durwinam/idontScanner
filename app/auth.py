@@ -33,9 +33,22 @@ def hash_password(password: str, salt: bytes | None = None) -> str:
 
 
 def verify_password(password: str, stored: str) -> bool:
-    """Verify a stored scrypt password hash."""
+    """Verify supported idontScanner scrypt password formats.
+
+    Supports the current six-field format and the installer format used by
+    v3.5.0 (four fields: algorithm, N, salt, digest), plus the legacy
+    ``salt:digest`` representation.
+    """
     try:
-        _, n, r, p, salt_hex, digest_hex = stored.split("$", 5)
+        parts = stored.split("$")
+        if len(parts) == 6 and parts[0] == "scrypt":
+            _, n, r, p, salt_hex, digest_hex = parts
+        elif len(parts) == 4 and parts[0] == "scrypt":
+            _, n, salt_hex, digest_hex = parts
+            r, p = "8", "1"
+        else:
+            raise ValueError("unsupported password hash format")
+
         digest = hashlib.scrypt(
             password.encode(),
             salt=bytes.fromhex(salt_hex),
@@ -44,7 +57,8 @@ def verify_password(password: str, stored: str) -> bool:
             p=int(p),
             dklen=64,
         )
-    except (TypeError, ValueError):
+        return hmac.compare_digest(digest.hex(), digest_hex)
+    except (TypeError, ValueError, OverflowError):
         try:
             salt_hex, digest_hex = stored.split(":", 1)
             digest = hashlib.scrypt(
@@ -55,7 +69,7 @@ def verify_password(password: str, stored: str) -> bool:
                 p=1,
                 dklen=64,
             )
-        except (TypeError, ValueError):
+            return hmac.compare_digest(digest.hex(), digest_hex)
+        except (TypeError, ValueError, OverflowError):
             return False
 
-    return hmac.compare_digest(digest.hex(), digest_hex)

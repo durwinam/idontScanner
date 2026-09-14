@@ -9,6 +9,7 @@ import json
 import os
 import shutil
 import socket
+import statistics
 import sqlite3
 import ssl
 import time
@@ -30,8 +31,14 @@ from app.config import (
     SECRET,
     TIMEOUT,
     UPDATE_VERSION_URL,
+    TARGET_BENCHMARK_COUNT,
+    TARGET_CUSTOM_LIMIT,
+    TARGET_BENCHMARK_SECONDS,
+    TARGET_PROBE_CONCURRENCY,
+    TARGET_CATALOG_PATH,
 )
 from app.check_host import (
+    IRAN_NODES,
     fetch_result as fetch_check_host_result,
     local_info as check_host_info,
     normalize_results as normalize_check_host_results,
@@ -42,7 +49,7 @@ from app.connection import (
     parse_config,
     probe_services,
 )
-from app.network import measure_network_quality
+from app.network import measure_network_quality, measure_target_path, resolve_public_ipv4
 from app.database import (
     db,
     get_setting,
@@ -52,7 +59,7 @@ from app.database import (
     telegram_configured_ids,
     telegram_owner_id,
 )
-from app.scanner import peer_certificate_details, run_scan, tls_probe
+from app.scanner import certificate_sni_candidates, peer_certificate_details, probe_sni, run_scan, tls_probe
 from app.security import (
     csrf,
     require_auth,
@@ -517,6 +524,403 @@ async def speed_test_page(request: Request):
     )
 
 
+async def _ensure_target_catalog_runtime():
+    """Read the prepared benchmark catalog without blocking normal requests.
+
+    Installation/update prepare the catalog using multiple public sources.
+    Runtime intentionally does not perform long external downloads: a missing
+    catalog should surface as a clear UI state instead of making Find Target
+    hang on a ranking-provider timeout.
+    """
+    catalog_path = Path(os.getenv("IDONTSCANNER_TARGET_CATALOG", str(TARGET_CATALOG_PATH)))
+    if not catalog_path.exists():
+        return [], "unavailable"
+    try:
+        current = [
+            x.strip().lower().rstrip(".")
+            for x in catalog_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+            if valid_domain(x.strip())
+        ]
+        if len(current) >= TARGET_BENCHMARK_COUNT:
+            return current[:TARGET_BENCHMARK_COUNT], "local"
+        return current, "incomplete"
+    except Exception:
+        return [], "unavailable"
+
+@app.get("/api/benchmark-targets")
+async def benchmark_targets_catalog(request: Request):
+    if not require_auth(request):
+        return JSONResponse({"error": "Authentication required."}, status_code=401)
+    base, source = await _ensure_target_catalog_runtime()
+    with db() as con:
+        rows = con.execute("SELECT id, domain FROM benchmark_custom_targets ORDER BY id ASC LIMIT ?", (TARGET_CUSTOM_LIMIT,)).fetchall()
+    custom=[{"id":int(r[0]),"domain":r[1]} for r in rows]
+    return {"base": [{"domain":d,"endpoint":f"{d}:443"} for d in base], "base_count":len(base), "required":TARGET_BENCHMARK_COUNT, "source":source, "custom":custom, "custom_count":len(custom)}
+
+@app.get("/targets/", response_class=HTMLResponse)
+async def targets_page(request: Request):
+    if not require_auth(request):
+        return _redirect_to_login()
+    with db() as con:
+        custom = con.execute("SELECT id, domain FROM benchmark_custom_targets ORDER BY id ASC LIMIT ?", (TARGET_CUSTOM_LIMIT,)).fetchall()
+    return templates.TemplateResponse("targets.html", _page_context(request, active="scanner", target_count=0, base_targets=[], custom_targets=custom))
+
+
+def _target_catalog():
+    catalog_path = Path(os.getenv("IDONTSCANNER_TARGET_CATALOG", str(TARGET_CATALOG_PATH)))
+    if not catalog_path.exists():
+        return []
+    return [x.strip().lower().rstrip(".") for x in catalog_path.read_text(encoding="utf-8", errors="ignore").splitlines() if valid_domain(x.strip())][:TARGET_BENCHMARK_COUNT]
+
+
+async def _target_probe(domain: str):
+    result = await tls_probe(domain)
+    result = dict(result)
+    result["domain"] = domain
+    result["endpoint"] = f"{domain}:443"
+    result["host_ok"] = result.get("status") == "ok" and result.get("tcp_ms") is not None
+    result["sni_ok"] = result.get("status") == "ok" and bool(result.get("tls_version"))
+    return result
+
+
+def _benchmark_score(item, ranking):
+    if item.get("status") != "ok":
+        return -1.0
+    latency = float(item.get("latency_ms") or 9999)
+    tls = item.get("tls_version") or ""
+    alpn = item.get("alpn") or ""
+    host = 1 if item.get("host_ok") else 0
+    sni = 1 if item.get("sni_ok") else 0
+    tls_quality = 1.0 if tls == "TLSv1.3" else 0.85 if tls == "TLSv1.2" else 0.35
+    alpn_quality = 1.0 if alpn == "h2" else 0.7 if alpn == "http/1.1" else 0.3
+    latency_quality = max(0.0, min(1.0, 1.0 - latency / 500.0))
+    if ranking == "latency":
+        return latency_quality * 100
+    if ranking == "tls":
+        return (tls_quality * .55 + alpn_quality * .2 + latency_quality * .15 + host * .05 + sni * .05) * 100
+    if ranking == "stability":
+        return (host * .3 + sni * .3 + tls_quality * .2 + alpn_quality * .1 + latency_quality * .1) * 100
+    return (latency_quality * .35 + tls_quality * .25 + alpn_quality * .15 + host * .125 + sni * .125) * 100
+
+
+async def _best_effort_isp(ip: str):
+    if not ip:
+        return None
+    def fetch():
+        try:
+            req=urllib.request.Request(f"https://ipwho.is/{ip}", headers={"User-Agent":"idontScanner/3.5.0"})
+            with urllib.request.urlopen(req, timeout=1.5) as r:
+                data=json.loads(r.read(12000).decode("utf-8","replace"))
+            conn=data.get("connection") or {}
+            return conn.get("isp") or conn.get("org") or conn.get("asn")
+        except Exception:
+            return None
+    return await asyncio.to_thread(fetch)
+
+
+
+async def _iran_target_diagnostics(domain: str) -> dict:
+    """Run bounded Iran-side ICMP and HTTP diagnostics in parallel.
+
+    Check-Host exposes node-side reachability and HTTP response timing. It does
+    not expose arbitrary-target upload/download throughput, so those values are
+    never inferred from response time.
+    """
+    async def run_one(check_type: str, target: str):
+        try:
+            started = await start_check_host(check_type, target, nodes=list(IRAN_NODES))
+            deadline = time.perf_counter() + 6.0
+            raw = {}
+            while time.perf_counter() < deadline:
+                raw = await fetch_check_host_result(started["request_id"])
+                normalized = normalize_check_host_results(check_type, raw, started["nodes"])
+                if normalized.get("complete"):
+                    break
+                await asyncio.sleep(0.3)
+            return normalize_check_host_results(check_type, raw, started["nodes"])
+        except Exception as exc:
+            return {"results": [], "complete": False, "error": str(exc)[:180]}
+
+    ping, http = await asyncio.gather(
+        run_one("ping", f"{domain}:443"),
+        run_one("http", f"https://{domain}/"),
+    )
+    ping_results = ping.get("results", [])
+    values = [
+        x.get("avg_ms") for x in ping_results
+        if x.get("status") == "online" and x.get("avg_ms") is not None
+    ]
+    loss_values = [x.get("loss_percent") for x in ping_results if x.get("loss_percent") is not None]
+    http_results = http.get("results", [])
+    http_values = [x.get("latency_ms") for x in http_results if x.get("status") == "online" and x.get("latency_ms") is not None]
+    return {
+        "ping": ping_results,
+        "http": http_results,
+        "average_ping_ms": round(statistics.mean(values), 1) if values else None,
+        "jitter_ms": round(statistics.pstdev(values), 1) if len(values) > 1 else 0.0 if values else None,
+        "average_loss_percent": round(statistics.mean(loss_values), 1) if loss_values else None,
+        "http_average_ms": round(statistics.mean(http_values), 1) if http_values else None,
+        "online_nodes": len(values),
+        "total_nodes": len(IRAN_NODES),
+        "errors": [x for x in (ping.get("error"), http.get("error")) if x],
+    }
+
+
+def _deep_quality_score(vps: dict, iran: dict, target: dict, sni: dict | None) -> float | None:
+    """Conservative quality score from measurements that were actually observed."""
+    components: list[tuple[float, float]] = []
+
+    latency = vps.get("tcp_latency_ms")
+    if latency is not None:
+        components.append((max(0.0, min(1.0, 1.0 - float(latency) / 300.0)), 0.22))
+    jitter = vps.get("jitter_ms")
+    if jitter is not None:
+        components.append((max(0.0, min(1.0, 1.0 - float(jitter) / 100.0)), 0.14))
+    loss = vps.get("tcp_loss_percent")
+    if loss is not None:
+        components.append((max(0.0, 1.0 - float(loss) / 100.0), 0.12))
+    download = vps.get("download_mbps")
+    if download is not None:
+        # Log-like normalization avoids making very high bandwidth dominate the score.
+        import math
+        components.append((max(0.0, min(1.0, math.log1p(float(download)) / math.log1p(500.0))), 0.18))
+
+    iran_latency = iran.get("average_ping_ms")
+    if iran_latency is not None:
+        components.append((max(0.0, min(1.0, 1.0 - float(iran_latency) / 400.0)), 0.14))
+    iran_loss = iran.get("average_loss_percent")
+    if iran_loss is not None:
+        components.append((max(0.0, 1.0 - float(iran_loss) / 100.0), 0.08))
+
+    tls = target.get("tls_version")
+    alpn = target.get("alpn")
+    if tls:
+        components.append((1.0 if tls == "TLSv1.3" else 0.85 if tls == "TLSv1.2" else 0.45, 0.04))
+    if alpn:
+        components.append((1.0 if alpn == "h2" else 0.75 if alpn == "http/1.1" else 0.4, 0.04))
+    if sni:
+        components.append((1.0 if sni.get("sni_verified") else 0.0, 0.04))
+
+    if not components:
+        return None
+    total_weight = sum(weight for _, weight in components)
+    return round(sum(value * weight for value, weight in components) / total_weight * 100.0, 1)
+
+
+@app.post("/api/target-details")
+async def target_details(request: Request):
+    body, error = await _authorized_json(request)
+    if error:
+        return error
+    raw = str(body.get("domain", "")).strip().lower().removesuffix(":443")
+    domain = valid_domain(raw)
+    if not domain:
+        return JSONResponse({"error": "Invalid target domain."}, status_code=400)
+    requested_sni = str(body.get("sni", "")).strip().lower().rstrip(".")
+    if requested_sni and not valid_domain(requested_sni):
+        requested_sni = ""
+
+    try:
+        await asyncio.to_thread(resolve_public_ipv4, domain)
+    except Exception as exc:
+        return JSONResponse({"error": f"Target is not a public IPv4 destination: {str(exc)[:160]}"}, status_code=400)
+
+    started = time.perf_counter()
+    try:
+        async with asyncio.timeout(16.0):
+            probe = await asyncio.wait_for(tls_probe(domain), timeout=4.5)
+            if probe.get("status") != "ok" or not probe.get("ip"):
+                return JSONResponse({"error": probe.get("error") or "Target is not TLS reachable."}, status_code=502)
+
+            best_sni = requested_sni if requested_sni else domain
+            sni_probe = None
+            candidates = certificate_sni_candidates(probe.get("cert_san", ""), domain)
+            if requested_sni and requested_sni != domain:
+                candidates = [requested_sni] + [x for x in candidates if x != requested_sni]
+            else:
+                candidates = candidates[:4]
+            if candidates:
+                completed = await asyncio.gather(*(probe_sni(probe["ip"], c) for c in candidates), return_exceptions=True)
+                good = [x for x in completed if isinstance(x, dict) and x.get("status") == "ok" and x.get("sni_verified")]
+                if good:
+                    sni_probe = min(good, key=lambda x: float(x.get("sni_latency_ms") or 99999))
+                    best_sni = sni_probe.get("sni") or best_sni
+
+            vps_task = asyncio.to_thread(measure_target_path, domain, best_sni)
+            iran_task = _iran_target_diagnostics(domain)
+            vps, iran = await asyncio.gather(vps_task, iran_task, return_exceptions=True)
+            if isinstance(vps, Exception):
+                vps = {"error": str(vps)[:180], "download_mbps": None, "upload_mbps": None}
+            if isinstance(iran, Exception):
+                iran = {"ping": [], "http": [], "errors": [str(iran)[:180]]}
+    except TimeoutError:
+        return JSONResponse({"error": "Deep diagnostics timed out. Try the target again."}, status_code=504)
+
+    deep_score = _deep_quality_score(vps, iran, probe, sni_probe)
+    duration_ms = round((time.perf_counter() - started) * 1000, 1)
+    return {
+        "domain": domain,
+        "endpoint": f"{domain}:443",
+        "score": body.get("score"),
+        "deep_score": deep_score,
+        "isp": body.get("isp"),
+        "target": probe,
+        "best_sni": best_sni,
+        "sni": sni_probe,
+        "vps": vps,
+        "iran": iran,
+        "upload_note": "Upload to an arbitrary target is not reported unless that target exposes a documented, safe upload endpoint. The number is never fabricated.",
+        "speed_reference": "Use the separate VPS Speed Test for VPS-to-internet upload/download; it is not presented as target throughput.",
+        "duration_ms": duration_ms,
+    }
+
+@app.post("/api/target-benchmark")
+async def target_benchmark(request: Request):
+    body, error = await _authorized_json(request)
+    if error:
+        return error
+    ranking = str(body.get("ranking", "balanced")).lower()
+    if ranking not in {"balanced", "latency", "tls", "stability"}:
+        ranking = "balanced"
+    limit = max(1, min(30, int(body.get("limit", 15))))
+    custom_input = body.get("targets")
+    catalog = _target_catalog()
+    if len(catalog) < TARGET_BENCHMARK_COUNT:
+        return JSONResponse({"error": f"Target catalog is incomplete ({len(catalog)}/{TARGET_BENCHMARK_COUNT}). Run the target catalog sync first."}, status_code=503)
+    with db() as con:
+        rows = con.execute("SELECT domain FROM benchmark_custom_targets ORDER BY id ASC LIMIT ?", (TARGET_CUSTOM_LIMIT,)).fetchall()
+    custom = [r[0] for r in rows]
+    # Explicit editor input is limited to custom entries plus catalog entries; it cannot erase the base catalog.
+    if isinstance(custom_input, list) and custom_input:
+        requested=[]; seen=set(catalog)
+        for raw in custom_input:
+            d=valid_domain(str(raw).strip().lower().removesuffix(":443"))
+            if d and d not in seen and len(requested)<TARGET_CUSTOM_LIMIT:
+                requested.append(d); seen.add(d)
+        if requested:
+            with db() as con:
+                for d in requested:
+                    con.execute("INSERT OR IGNORE INTO benchmark_custom_targets(domain,created_at) VALUES (?,?)", (d,int(time.time())))
+            custom = list(dict.fromkeys(custom + requested))[-TARGET_CUSTOM_LIMIT:]
+    targets = list(dict.fromkeys(catalog + custom))
+    started=time.perf_counter(); deadline=started + TARGET_BENCHMARK_SECONDS
+    sem=asyncio.Semaphore(TARGET_PROBE_CONCURRENCY)
+    results=[]
+    async def worker(d):
+        if time.perf_counter() >= deadline: return None
+        async with sem:
+            if time.perf_counter() >= deadline: return None
+            try:
+                return await asyncio.wait_for(_target_probe(d), timeout=min(3.5, max(.25, deadline-time.perf_counter())))
+            except Exception:
+                return {"domain":d,"endpoint":f"{d}:443","status":"timeout","host_ok":False,"sni_ok":False,"latency_ms":None}
+    tasks=[asyncio.create_task(worker(d)) for d in targets]
+    try:
+        done,pending=await asyncio.wait(tasks, timeout=TARGET_BENCHMARK_SECONDS)
+        for task in done:
+            item=task.result()
+            if item: results.append(item)
+        for task in pending: task.cancel()
+    except Exception:
+        for task in tasks: task.cancel()
+    for item in results:
+        item["score"] = round(_benchmark_score(item, ranking), 1)
+    # First-pass ranking identifies a bounded candidate set. Alternate SNI
+    # checks are derived only from certificate SANs returned by the target,
+    # which keeps the 30-second benchmark bounded even with 3,000 targets.
+    results.sort(key=lambda x:(-x["score"], float(x.get("latency_ms") or 99999)))
+    candidate_pool = results[:min(80, len(results))]
+    sni_jobs = []
+    for item in candidate_pool:
+        if time.perf_counter() >= deadline:
+            break
+        ip = item.get("ip")
+        if not ip:
+            continue
+        candidates = certificate_sni_candidates(item.get("cert_san", ""), item.get("domain", ""))
+        for candidate in candidates:
+            sni_jobs.append((item, ip, candidate))
+    sni_sem = asyncio.Semaphore(24)
+
+    async def sni_worker(item, ip, candidate):
+        if time.perf_counter() >= deadline:
+            return None
+        async with sni_sem:
+            if time.perf_counter() >= deadline:
+                return None
+            remaining = max(0.25, deadline - time.perf_counter())
+            try:
+                return item, await asyncio.wait_for(probe_sni(ip, candidate), timeout=min(2.25, remaining))
+            except Exception as exc:
+                return item, {"status":"failed","sni":candidate,"sni_verified":False,"sni_latency_ms":None,"error":str(exc)[:180]}
+
+    if sni_jobs:
+        tasks=[asyncio.create_task(sni_worker(*job)) for job in sni_jobs]
+        done, pending = await asyncio.wait(tasks, timeout=max(0.1, deadline-time.perf_counter()))
+        for task in done:
+            try:
+                item, probe = task.result()
+            except Exception:
+                continue
+            if not probe or probe.get("status") != "ok" or not probe.get("sni_verified"):
+                continue
+            current = item.get("best_sni")
+            if current is None or float(probe.get("sni_latency_ms") or 99999) < float(current.get("sni_latency_ms") or 99999):
+                item["best_sni"] = probe
+        for task in pending:
+            task.cancel()
+
+    # A successful alternate SNI is a quality signal, not a guarantee of
+    # compatibility with every client/network. Fold it into the final score.
+    for item in results:
+        best_sni = item.get("best_sni")
+        sni_bonus = 0.0
+        if best_sni:
+            sni_latency = float(best_sni.get("sni_latency_ms") or 9999)
+            sni_bonus = max(0.0, min(1.0, 1.0 - sni_latency / 500.0)) * 12.0
+            item["sni"] = best_sni.get("sni")
+            item["sni_ok"] = True
+            item["sni_latency_ms"] = best_sni.get("sni_latency_ms")
+            item["sni_tls_version"] = best_sni.get("sni_tls_version")
+            item["sni_alpn"] = best_sni.get("sni_alpn")
+            item["sni_source"] = "certificate SAN"
+        else:
+            item["sni"] = item.get("domain")
+            item["sni_ok"] = item.get("status") == "ok"
+            item["sni_latency_ms"] = item.get("tls_ms")
+            item["sni_tls_version"] = item.get("tls_version")
+            item["sni_alpn"] = item.get("alpn")
+            item["sni_source"] = "direct host"
+        item["score"] = round(min(100.0, float(item.get("score") or 0) + sni_bonus), 1)
+
+    results.sort(key=lambda x:(-x["score"], float(x.get("latency_ms") or 99999)))
+    top=results[:limit]
+    # ISP enrichment is best-effort and is strictly bounded by the same
+    # benchmark deadline; it can never extend Find Target past 30 seconds.
+    remaining = deadline - time.perf_counter()
+    if top and remaining > 0.15:
+        async def isp_worker(item):
+            try:
+                value = await asyncio.wait_for(
+                    _best_effort_isp(item.get("ip")),
+                    timeout=min(0.8, max(0.15, deadline - time.perf_counter())),
+                )
+                return item, value
+            except Exception:
+                return item, None
+        isp_tasks=[asyncio.create_task(isp_worker(item)) for item in top]
+        done, pending = await asyncio.wait(isp_tasks, timeout=max(0.05, deadline-time.perf_counter()))
+        for task in done:
+            try:
+                item, isp = task.result()
+            except Exception:
+                continue
+            item["isp"] = isp
+        for task in pending:
+            task.cancel()
+    duration_ms=round(min(TARGET_BENCHMARK_SECONDS, time.perf_counter()-started)*1000,1)
+    return {"total":len(results),"tested":len(results),"ok":sum(x.get("status")=="ok" for x in results),"duration_ms":duration_ms,"deadline_seconds":TARGET_BENCHMARK_SECONDS,"results":top,"catalog_size":len(catalog),"custom_size":len(custom)}
+
 @app.get("/connection/", response_class=HTMLResponse)
 async def connection_page(request: Request):
     if not require_auth(request):
@@ -761,6 +1165,15 @@ async def sessions_api(request: Request):
 
     return [dict(row) for row in rows]
 
+
+@app.delete("/api/sessions/{session_id}")
+async def revoke_session(request: Request, session_id: int):
+    if not require_auth(request): return JSONResponse({"error":"unauthorized"}, status_code=401)
+    if not hmac.compare_digest(csrf(request), request.headers.get("x-csrf-token", "")):
+        return JSONResponse({"error":"csrf"}, status_code=403)
+    with db() as con:
+        con.execute("DELETE FROM sessions WHERE id=?", (session_id,))
+    return {"ok": True}
 
 @app.post("/api/account/password")
 async def change_password(request: Request):

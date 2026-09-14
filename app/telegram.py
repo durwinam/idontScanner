@@ -356,7 +356,7 @@ def format_help(premium: bool) -> str:
         f"<b>{ui_emoji('❗️', premium)} idontScanner Help</b>",
         "━━━━━━━━━━━━━━━━━━━━",
         "<b>Available tools</b>",
-        "⚡️ Domain Scanner — scan the configured 65 domains.",
+        "⚡️ Domain Scanner — scan the configured 100 domains.",
         "🌐 Check Host — global or Iran multi-node diagnostics.",
         "📶 Smart Connection — Download, Upload, Latency and Jitter.",
         "⏲ VPS Speed — bounded VPS network-quality test.",
@@ -508,7 +508,7 @@ async def handle_callback(token: str, callback: dict):
         return
 
     if action == "scan":
-        edit_message(token, chat_id, message_id, f"{ui_emoji('⚡️', premium)} <b>Scanning 65 domains...</b>", _back_keyboard(premium))
+        edit_message(token, chat_id, message_id, f"{ui_emoji('⚡️', premium)} <b>Scanning 100 domains...</b>", _back_keyboard(premium))
         scan = await run_scan()
         edit_message(token, chat_id, message_id, format_scan_message(scan, premium), _back_keyboard(premium))
         return

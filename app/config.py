@@ -17,7 +17,7 @@ DEFAULT_PORT = 443
 APP_VERSION = (
     (BASE / "VERSION").read_text(encoding="utf-8").strip()
     if (BASE / "VERSION").exists()
-    else "v3.0.7"
+    else "v3.5.7"
 )
 UPDATE_VERSION_URL = "https://raw.githubusercontent.com/durwinam/idontScanner/main/VERSION"
 
@@ -87,9 +87,50 @@ DEFAULT_DOMAINS = [
     ("Stack Overflow", "stackoverflow.com", "Developer"),
     ("Mozilla", "mozilla.org", "Reference"),
     ("Rust", "rust-lang.org", "Developer"),
-]
+
+    ("Mozilla MDN", "developer.mozilla.org", "Developer"),
+    ("npm Registry", "registry.npmjs.org", "Developer"),
+    ("Microsoft Docs", "learn.microsoft.com", "Developer"),
+    ("Stack Exchange", "stackexchange.com", "Developer"),
+    ("Python", "python.org", "Developer"),
+    ("Python Docs", "docs.python.org", "Developer"),
+    ("Rust Docs", "doc.rust-lang.org", "Developer"),
+    ("Ubuntu", "ubuntu.com", "Developer"),
+    ("Debian", "debian.org", "Developer"),
+    ("Cloudflare Radar", "radar.cloudflare.com", "Cloud"),
+    ("Cloudflare Workers", "workers.dev", "Cloud"),
+    ("Vercel", "vercel.com", "Cloud"),
+    ("Netlify", "netlify.com", "Cloud"),
+    ("DigitalOcean", "digitalocean.com", "Cloud"),
+    ("Heroku", "heroku.com", "Cloud"),
+    ("Oracle Cloud", "oracle.com", "Cloud"),
+    ("IBM", "ibm.com", "Cloud"),
+    ("Alibaba", "alibabacloud.com", "Cloud"),
+    ("Tencent Cloud", "cloud.tencent.com", "Cloud"),
+    ("Cloudflare Pages", "pages.dev", "Cloud"),
+    ("Reddit Media", "redd.it", "Media"),
+    ("Pinterest", "pinterest.com", "Social"),
+    ("Snapchat", "snapchat.com", "Social"),
+    ("Discord CDN", "discordapp.com", "Social"),
+    ("Mastodon", "mastodon.social", "Social"),
+    ("Quora", "quora.com", "Social"),
+    ("Medium", "medium.com", "Media"),
+    ("IMDb", "imdb.com", "Media"),
+    ("Rotten Tomatoes", "rottentomatoes.com", "Media"),
+    ("Fandom", "fandom.com", "Reference"),
+    ("Britannica", "britannica.com", "Reference"),
+    ("Khan Academy", "khanacademy.org", "Education"),
+    ("Coursera", "coursera.org", "Education"),
+    ("Udemy", "udemy.com", "Education"),
+    ("Zoom", "zoom.us", "Business"),]
 
 
 MAX_SCAN_TARGETS = 100
 SCAN_CONCURRENCY = 8
 SESSION_RETENTION = 3
+TARGET_BENCHMARK_COUNT = 3000
+TARGET_CUSTOM_LIMIT = 20
+TARGET_BENCHMARK_SECONDS = 30.0
+TARGET_PROBE_CONCURRENCY = 32
+TRANCO_TARGET_URL = "https://tranco-list.eu/top-1m.csv.zip"
+TARGET_CATALOG_PATH = DATA_DIR / "target_catalog.txt"

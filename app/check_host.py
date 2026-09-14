@@ -13,7 +13,7 @@ import urllib.request
 from typing import Any
 
 API_BASE = "https://check-host.net"
-USER_AGENT = "idontScanner-CheckHost/3.0.7"
+USER_AGENT = "idontScanner-CheckHost/3.5.0"
 MAX_NODES = 15
 IRAN_NODES = (
     "ir1.node.check-host.net",
