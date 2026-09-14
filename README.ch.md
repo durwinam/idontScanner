@@ -43,8 +43,8 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 ### 从 ZIP 文件安装
 
 ```bash
-unzip idontScanner-v3.5.7.zip
-cd idontScanner-3.5.7
+unzip idontScanner-v3.6.2.zip
+cd idontScanner-v3.6.2
 sudo bash install.sh --fresh
 ```
 
@@ -354,7 +354,7 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 
 ## 📦 版本
 
-**v3.5.7**
+**v3.6.2**
 
 ---
 
