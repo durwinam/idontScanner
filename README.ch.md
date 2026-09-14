@@ -53,7 +53,7 @@ sudo bash install.sh --fresh
 ---
 
 <p align="center">
-  <img src="static/logo/IMG_0397.jpeg" alt="idontScanner Logo" width="420">
+  <img src="static/logo/IMG_0397.jpg" alt="idontScanner Logo" width="420">
 </p>
 
 ## 🔄 无需重新安装即可更新
@@ -242,7 +242,7 @@ Telegram 是可选功能，并通过 **Polling** 工作，因此使用 Bot 不�
 ```
 
 <p align="center">
-  <img src="static/logo/IMG_0399.jpeg" alt="idontScanner" width="420">
+  <img src="static/logo/IMG_0399.jpg" alt="idontScanner" width="420">
 </p>
 
 ---
@@ -333,7 +333,7 @@ sudo bash install.sh --fresh
 ⚠️ 此模式会删除数据库、历史记录、域名、Telegram、Scheduler 以及之前的用户账户。
 
 <p align="center">
-  <img src="static/logo/IMG_0398.jpeg" alt="idontScanner" width="420">
+  <img src="static/logo/IMG_0398.jpg" alt="idontScanner" width="420">
 </p>
 
 ---
