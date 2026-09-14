@@ -21,7 +21,7 @@ import zipfile
 from pathlib import Path
 
 COUNT_DEFAULT = 3000
-USER_AGENT = "idontScanner-target-catalog/3.5.7"
+USER_AGENT = "idontScanner-target-catalog/3.5.8"
 
 SOURCES = [
     ("tranco", "https://tranco-list.eu/top-1m.csv.zip", "zip_rank_domain"),
@@ -157,16 +157,44 @@ def atomic_write(path: Path, domains: list[str], source: str, transport: str) ->
 
 
 def fetch(count: int) -> tuple[list[str], str, str, list[str]]:
+    """Build one catalog from the best available sources.
+
+    A single ranking provider does not have to be reachable. Sources are
+    accumulated until the requested count is reached, while preserving the
+    order in which domains were discovered. This makes upgrades much more
+    reliable on VPS networks where one ranking provider may be blocked.
+    """
     failures: list[str] = []
+    combined: list[str] = []
+    seen: set[str] = set()
+    successful_sources: list[str] = []
+    transports: list[str] = []
+
     for source, url, parser in SOURCES:
+        if len(combined) >= count:
+            break
         try:
             blob, transport = download(url)
             domains = parse(blob, parser, count)
-            if len(domains) >= count:
-                return domains[:count], source, transport, failures
-            failures.append(f"{source}: only {len(domains)}/{count} valid domains")
+            added = 0
+            for domain in domains:
+                if domain not in seen:
+                    seen.add(domain)
+                    combined.append(domain)
+                    added += 1
+                    if len(combined) >= count:
+                        break
+            successful_sources.append(source)
+            transports.append(transport)
+            if added == 0:
+                failures.append(f"{source}: no new domains")
         except Exception as exc:
             failures.append(f"{source}: {exc}")
+
+    if len(combined) >= count:
+        return combined[:count], "+".join(successful_sources), "+".join(transports), failures
+
+    failures.append(f"combined catalog: only {len(combined)}/{count} unique valid domains")
     return [], "unavailable", "none", failures
 
 
