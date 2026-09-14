@@ -1,8 +1,8 @@
 # Changelog
 
-## v3.5.9 — Release
+## v3.6.0 — Release
 
-- Version bumped to `v3.5.9`; v3.5.8 update hotfix behavior is retained.
+- Version bumped to `v3.6.0`; v3.5.8 update hotfix behavior is retained.
 - In-place update and 3,000-target catalog repair remain available without reinstalling the panel.
 
 ## v3.5.8 — In-place update + 3,000 target catalog

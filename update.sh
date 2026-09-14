@@ -12,6 +12,7 @@ ARCHIVE_URL="https://github.com/durwinam/idontScanner/archive/refs/heads/${BRANC
 
 log() { printf '\033[36m[idontScanner]\033[0m %s\n' "$*"; }
 ok() { printf '\033[32m[OK]\033[0m %s\n' "$*"; }
+warn() { printf '\033[33m[WARN]\033[0m %s\n' "$*" >&2; }
 die() { printf '\033[31m[ERROR]\033[0m %s\n' "$*" >&2; exit 1; }
 
 [[ $EUID -eq 0 ]] || die "Run as root: sudo bash update.sh"
