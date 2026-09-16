@@ -108,6 +108,8 @@ async function loadTelegramStatus() {
         const adminsInput = document.querySelector("#telegramAdminIds");
         if (ownerInput) ownerInput.value = data.owner_id || "";
         if (adminsInput) adminsInput.value = (data.admin_ids || []).join(", ");
+        const publicUrl = document.querySelector("#publicPanelUrl");
+        if (publicUrl) publicUrl.value = data.public_panel_url || "";
         setTelegramLink(data.url);
     } catch {
         setTelegramStatus("Unable to check Telegram connection.");
@@ -137,6 +139,7 @@ document.querySelector("#saveTelegram")?.addEventListener("click", async () => {
                 token,
                 owner_id: document.querySelector("#telegramOwnerId").value.trim(),
                 admin_ids: document.querySelector("#telegramAdminIds").value.trim(),
+                public_panel_url: document.querySelector("#publicPanelUrl")?.value.trim() || "",
             }),
         });
         const data = await response.json();
