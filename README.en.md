@@ -53,7 +53,7 @@ sudo bash install.sh --fresh
 ---
 
 <p align="center">
-  <img src="static/logo/IMG_0397.jpeg" alt="idontScanner Logo" width="420">
+  <img src="static/logo/IMG_0397.jpg" alt="idontScanner Logo" width="420">
 </p>
 
 ## 🔄 Update Without Reinstallation
@@ -240,7 +240,7 @@ Only the registered Owner and Admins are allowed to use the Bot.
 /status
 ```
 <p align="center">
-  <img src="static/logo/IMG_0399.jpeg" alt="idontScanner" width="420">
+  <img src="static/logo/IMG_0399.jpg" alt="idontScanner" width="420">
 </p>
 ---
 
@@ -330,7 +330,7 @@ sudo bash install.sh --fresh
 ⚠️ This mode deletes the database, History, Domains, Telegram, Scheduler, and the previous user account.
 
 <p align="center">
-  <img src="static/logo/IMG_0398.jpeg" alt="idontScanner" width="420">
+  <img src="static/logo/IMG_0398.jpg" alt="idontScanner" width="420">
 </p>
 ---
 
