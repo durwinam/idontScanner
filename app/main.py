@@ -63,10 +63,16 @@ from app.database import (
 )
 from app.scanner import certificate_sni_candidates, peer_certificate_details, probe_sni, run_scan, tls_probe
 from app.security import (
+    auth_blocked,
+    client_ip,
+    clear_failed_login,
     csrf,
+    record_failed_login,
     require_auth,
     remember_session,
     server_ip,
+    totp_enabled,
+    verify_totp,
     valid_domain,
 )
 from app.telegram import telegram_request
@@ -219,6 +225,7 @@ async def login_page(request: Request):
             "request": request,
             "base": BASE_PATH,
             "setup": password_row is None,
+            "two_factor_step": request.query_params.get("step") == "2fa" and bool(request.session.get("pending_2fa")),
             "csrf": csrf(request),
             "app_version": APP_VERSION,
         },
@@ -230,43 +237,68 @@ async def login(
     request: Request,
     username: str = Form(""),
     password: str = Form(""),
+    two_factor_code: str = Form(""),
     csrf_token: str = Form(""),
 ):
     if not hmac.compare_digest(csrf(request), csrf_token):
         return RedirectResponse("/login/?error=csrf", status_code=303)
 
+    ip = client_ip(request)
+    state = auth_blocked(ip)
+    if state:
+        return RedirectResponse("/login/?error=blocked", status_code=303)
+
+    pending_2fa = bool(request.session.get("pending_2fa"))
+
     with db() as con:
-        user_row = con.execute(
-            "SELECT value FROM settings WHERE key = 'username'"
-        ).fetchone()
-        password_row = con.execute(
-            "SELECT value FROM settings WHERE key = 'password'"
-        ).fetchone()
+        user_row = con.execute("SELECT value FROM settings WHERE key='username'").fetchone()
+        password_row = con.execute("SELECT value FROM settings WHERE key='password'").fetchone()
 
         if password_row is None:
             if not 3 <= len(username) <= 32 or len(password) < 8:
                 return RedirectResponse("/login/?error=weak", status_code=303)
-
-            con.execute(
-                "INSERT OR REPLACE INTO settings(key, value) VALUES('username', ?)",
-                (username,),
-            )
-            con.execute(
-                "INSERT OR REPLACE INTO settings(key, value) VALUES('password', ?)",
-                (hash_password(password),),
-            )
-        else:
+            con.execute("INSERT OR REPLACE INTO settings(key, value) VALUES('username', ?)", (username,))
+            con.execute("INSERT OR REPLACE INTO settings(key, value) VALUES('password', ?)", (hash_password(password),))
+        elif not pending_2fa:
             stored_username = user_row[0] if user_row else "admin"
-            if username != stored_username or not verify_password(
-                password,
-                password_row[0],
-            ):
+            valid = username == stored_username and verify_password(password, password_row[0])
+            if not valid:
+                result = record_failed_login(ip)
+                try:
+                    from app.telegram import security_alert
+                    await security_alert(get_setting("telegram_token"), "Failed panel login", ip, f"attempt {result['failed_count']}")
+                except Exception:
+                    pass
                 return RedirectResponse("/login/?error=invalid", status_code=303)
 
+            if totp_enabled():
+                request.session.clear()
+                request.session["pending_2fa"] = True
+                request.session["pending_username"] = stored_username
+                request.session["csrf"] = csrf(request)
+                return RedirectResponse("/login/?step=2fa", status_code=303)
+        else:
+            secret = get_setting("totp_secret", "")
+            if not verify_totp(secret, two_factor_code):
+                result = record_failed_login(ip)
+                try:
+                    from app.telegram import security_alert
+                    await security_alert(get_setting("telegram_token"), "Failed 2FA verification", ip, f"attempt {result['failed_count']}")
+                except Exception:
+                    pass
+                return RedirectResponse("/login/?step=2fa&error=invalid_2fa", status_code=303)
+
+    clear_failed_login(ip)
     request.session.clear()
     request.session["auth"] = True
     request.session["csrf"] = csrf(request)
     remember_session(request)
+
+    try:
+        from app.telegram import security_alert
+        await security_alert(get_setting("telegram_token"), "Panel login", ip, "Success")
+    except Exception:
+        pass
 
     return RedirectResponse("/dashboard/", status_code=303)
 
@@ -741,7 +773,7 @@ async def _best_effort_isp(ip: str):
         return None
     def fetch():
         try:
-            req=urllib.request.Request(f"https://ipwho.is/{ip}", headers={"User-Agent":"idontScanner/4.0.0"})
+            req=urllib.request.Request(f"https://ipwho.is/{ip}", headers={"User-Agent":"idontScanner/4.0.2"})
             with urllib.request.urlopen(req, timeout=1.5) as r:
                 data=json.loads(r.read(12000).decode("utf-8","replace"))
             conn=data.get("connection") or {}

@@ -81,6 +81,22 @@ def init_db():
             last_seen INTEGER NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS auth_attempts (
+            ip TEXT PRIMARY KEY,
+            failed_count INTEGER NOT NULL DEFAULT 0,
+            blocked_until INTEGER NOT NULL DEFAULT 0,
+            permanent INTEGER NOT NULL DEFAULT 0,
+            updated_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS security_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event TEXT NOT NULL,
+            ip TEXT NOT NULL,
+            detail TEXT NOT NULL DEFAULT '',
+            created_at INTEGER NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS scheduler (
             id INTEGER PRIMARY KEY CHECK(id = 1),
             enabled INTEGER NOT NULL DEFAULT 0,

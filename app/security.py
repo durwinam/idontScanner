@@ -116,3 +116,93 @@ def remember_session(request: Request):
             """
         )
 
+
+# --- Authentication hardening / TOTP ---
+import base64
+import hashlib
+import hmac
+import struct
+from urllib.parse import quote
+
+
+def client_ip(request) -> str:
+    return str(getattr(getattr(request, "client", None), "host", None) or "unknown")[:255]
+
+
+def auth_state(ip: str) -> dict:
+    with db() as con:
+        row = con.execute(
+            "SELECT failed_count, blocked_until, permanent FROM auth_attempts WHERE ip=?",
+            (ip,),
+        ).fetchone()
+    return dict(row) if row else {"failed_count": 0, "blocked_until": 0, "permanent": 0}
+
+
+def auth_blocked(ip: str) -> bool:
+    state = auth_state(ip)
+    return bool(state["permanent"] or int(state["blocked_until"] or 0) > int(time.time()))
+
+
+def record_failed_login(ip: str) -> dict:
+    now = int(time.time())
+    with db() as con:
+        row = con.execute("SELECT failed_count FROM auth_attempts WHERE ip=?", (ip,)).fetchone()
+        count = (int(row[0]) if row else 0) + 1
+        blocked_until = 0
+        permanent = 0
+        if count == 3:
+            blocked_until = now + 5 * 60
+        elif count == 4:
+            blocked_until = now + 20 * 60
+        elif count >= 5:
+            permanent = 1
+        con.execute(
+            """INSERT INTO auth_attempts(ip, failed_count, blocked_until, permanent, updated_at)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(ip) DO UPDATE SET failed_count=excluded.failed_count,
+               blocked_until=excluded.blocked_until, permanent=excluded.permanent,
+               updated_at=excluded.updated_at""",
+            (ip, count, blocked_until, permanent, now),
+        )
+    return {"failed_count": count, "blocked_until": blocked_until, "permanent": permanent}
+
+
+def clear_failed_login(ip: str) -> None:
+    with db() as con:
+        con.execute("DELETE FROM auth_attempts WHERE ip=?", (ip,))
+
+
+def new_totp_secret() -> str:
+    return base64.b32encode(secrets.token_bytes(20)).decode().rstrip("=")
+
+
+def _secret_bytes(secret: str) -> bytes:
+    return base64.b32decode(secret.upper() + "=" * (-len(secret) % 8), casefold=True)
+
+
+def totp_code(secret: str, for_time: int | None = None, digits: int = 6) -> str:
+    counter = int((for_time or int(time.time())) // 30)
+    digest = hmac.new(_secret_bytes(secret), struct.pack(">Q", counter), hashlib.sha1).digest()
+    offset = digest[-1] & 0x0F
+    value = struct.unpack(">I", digest[offset:offset + 4])[0] & 0x7FFFFFFF
+    return str(value % (10 ** digits)).zfill(digits)
+
+
+def verify_totp(secret: str, code: str, window: int = 1) -> bool:
+    if not secret:
+        return False
+    clean = "".join(ch for ch in str(code) if ch.isdigit())
+    if len(clean) != 6:
+        return False
+    now = int(time.time())
+    return any(hmac.compare_digest(totp_code(secret, now + step * 30), clean) for step in range(-window, window + 1))
+
+
+def totp_enabled() -> bool:
+    return get_setting("totp_enabled", "0") == "1" and bool(get_setting("totp_secret", ""))
+
+
+def provisioning_uri(username: str, secret: str) -> str:
+    issuer = "idontScanner"
+    label = f"{issuer}:{username}"
+    return f"otpauth://totp/{quote(label, safe=':@')}?secret={secret}&issuer={quote(issuer)}&algorithm=SHA1&digits=6&period=30"
