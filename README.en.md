@@ -43,8 +43,8 @@ The installer automatically:
 ### Installation from ZIP File
 
 ```bash
-unzip idontScanner-v3.6.2.zip
-cd idontScanner-v3.6.2
+unzip idontScanner-v4.0.0.zip
+cd idontScanner-v4.0.0
 sudo bash install.sh --fresh
 ```
 
@@ -350,7 +350,7 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 
 ## 📦 Version
 
-**v3.6.2**
+**v4.0.0**
 
 ---
 
