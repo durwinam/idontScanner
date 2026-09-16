@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import html
 import json
+import secrets
 from datetime import datetime, timezone
 from urllib.request import Request as URLRequest, urlopen
 
@@ -21,16 +22,18 @@ from app.database import (
     telegram_admin_ids,
     telegram_allowed_chat,
     telegram_configured_ids,
+    set_setting,
 )
 from app.network import measure_network_quality
 from app.scanner import run_scan
+from app.auth import hash_password, verify_password
 
 
 PREMIUM_EMOJIS = {
     "👋": "5454390891466726015",
     "⚡️": "5085022089103016925",
     "⚙️": "5116222002851480476",
-    "🔒": "5116516255355897110",
+    "🔒": "5397731992135545615",
     "✅": "6016907976609107800",
     "🔴": "6001066256025785838",
     "🟡": "6001542748287539188",
@@ -39,12 +42,12 @@ PREMIUM_EMOJIS = {
     "🌐": "5974475701179387553",
     "📊": "5118775128980718591",
     "❗️": "5976801477509778431",
-    "🔄": "6012661228910939253",
+    "🔄": "6019082338162446951",
     "⏰": "5809742105987259196",
     "⏲": "5976544483846654540",
     "📶": "5783105032350076195",
     "📜": "5264821604935804414",
-    "🔐": "5796525993401259188",
+    "🔐": "5836690092306992715",
     "🛰": "5321304062715517873",
     "🟢": "5787293020600671888",
     "🟡_status": "5926980668624998964",
@@ -58,7 +61,10 @@ PREMIUM_EMOJIS = {
     "🏆": "5312315739842026755",
     "🐢": "5219739304619694291",
     "👑": "5053412040337524042",
+    "✍️": "5258331647358540449",
+    "🚪": "5258084656674250503",
 }
+
 
 NORMAL_EMOJIS = {
     "iran": "🦁",
@@ -99,6 +105,11 @@ BUTTON_STYLES = {
     "check_dns": "primary",
     "check_global": "primary",
     "check_iran": "success",
+    "security": "primary",
+    "security_username": "primary",
+    "security_password": "primary",
+    "security_reset": "danger",
+    "security_logout": "danger",
 }
 
 BUTTON_ICONS = {
@@ -121,12 +132,18 @@ BUTTON_ICONS = {
     "check_dns": "🛰",
     "check_global": "🌐",
     "check_iran": "👑",
+    "security": "🔒",
+    "security_username": "✍️",
+    "security_password": "🔐",
+    "security_reset": "🔄",
+    "security_logout": "🚪",
 }
 
 
 # Target entry state is intentionally in-memory. It is only a short-lived
 # conversation helper and never stores credentials or persistent user data.
 _PENDING_CHECKS: dict[int, dict[str, str]] = {}
+_PENDING_SECURITY: dict[int, str] = {}
 
 
 def telegram_request(token: str, method: str, payload: dict | None = None):
@@ -211,10 +228,33 @@ def main_keyboard(premium: bool = True) -> dict:
             [button("Smart Connection", "smart", premium), button("VPS Speed", "speed", premium)],
             [button("Server Status", "status", premium), button("History", "history", premium)],
             [button("Network Diagnostics", "diagnostics", premium), button("Scheduler", "scheduler", premium)],
-            [button("Settings", "settings", premium), button("Refresh", "refresh", premium)],
+            [button("Settings", "settings", premium), button("Account Security", "security", premium)],
+            [button("Refresh", "refresh", premium)],
             [button("Help", "help", premium)],
         ]
     }
+
+
+def security_keyboard(premium: bool = True) -> dict:
+    return {
+        "inline_keyboard": [
+            [button("Change Username", "security_username", premium)],
+            [button("Change Password", "security_password", premium)],
+            [button("Reset Password", "security_reset", premium)],
+            [button("Logout All Sessions", "security_logout", premium)],
+            [button("Back to Menu", "menu", premium)],
+        ]
+    }
+
+
+def security_text() -> str:
+    return (
+        "<b>🔒 Account Security</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "Manage the panel administrator credentials and active web sessions.\n\n"
+        "Only the configured Telegram Owner can use these actions.\n"
+        "Passwords and session secrets are never displayed."
+    )
 
 
 def menu_text(premium: bool, first_name: str | None = None) -> str:
@@ -507,6 +547,45 @@ async def handle_callback(token: str, callback: dict):
         edit_message(token, chat_id, message_id, menu_text(premium, user.get("first_name")), main_keyboard(premium))
         return
 
+    if action == "security":
+        if str(chat_id) != telegram_owner_id():
+            edit_message(token, chat_id, message_id, "<b>Owner access required.</b>", _back_keyboard(premium))
+            return
+        edit_message(token, chat_id, message_id, security_text(), security_keyboard(premium))
+        return
+
+    if action == "security_username":
+        if str(chat_id) != telegram_owner_id():
+            return
+        _PENDING_SECURITY[chat_id] = "username"
+        edit_message(token, chat_id, message_id, "<b>Change Username</b>\n\nSend the new panel username (3–32 characters).", _back_keyboard(premium))
+        return
+
+    if action == "security_password":
+        if str(chat_id) != telegram_owner_id():
+            return
+        _PENDING_SECURITY[chat_id] = "password_current"
+        edit_message(token, chat_id, message_id, "<b>Change Password</b>\n\nSend your current password. It will not be echoed back.", _back_keyboard(premium))
+        return
+
+    if action == "security_reset":
+        if str(chat_id) != telegram_owner_id():
+            return
+        new_password = secrets.token_urlsafe(12)
+        set_setting("password", hash_password(new_password))
+        with db() as con:
+            con.execute("DELETE FROM sessions")
+        edit_message(token, chat_id, message_id, f"<b>Password reset complete.</b>\n\nYour new temporary password is:\n<code>{html.escape(new_password)}</code>\n\nAll web sessions were revoked. Save this password now; it will not be shown again.", _back_keyboard(premium))
+        return
+
+    if action == "security_logout":
+        if str(chat_id) != telegram_owner_id():
+            return
+        with db() as con:
+            con.execute("DELETE FROM sessions")
+        edit_message(token, chat_id, message_id, "<b>All web sessions have been revoked.</b>", security_keyboard(premium))
+        return
+
     if action == "scan":
         edit_message(token, chat_id, message_id, f"{ui_emoji('⚡️', premium)} <b>Scanning 100 domains...</b>", _back_keyboard(premium))
         scan = await run_scan()
@@ -582,6 +661,42 @@ async def handle_text_message(token: str, message: dict):
     text = (message.get("text") or "").strip()
     if not chat_id or chat.get("type") != "private" or not telegram_allowed_chat(chat_id):
         return
+
+    security_step = _PENDING_SECURITY.get(chat_id)
+    if security_step and str(chat_id) == telegram_owner_id() and text and not text.startswith("/"):
+        if security_step == "username":
+            if not 3 <= len(text) <= 32:
+                telegram_send("Username must be between 3 and 32 characters.", _back_keyboard(is_premium_user(user)), chat_id)
+            else:
+                set_setting("username", text)
+                _PENDING_SECURITY.pop(chat_id, None)
+                telegram_send("Username changed successfully.", security_keyboard(is_premium_user(user)), chat_id)
+            return
+        if security_step == "password_current":
+            if not verify_password(text, get_setting("password")):
+                telegram_send("Current password is incorrect.", _back_keyboard(is_premium_user(user)), chat_id)
+                return
+            _PENDING_SECURITY[chat_id] = "password_new"
+            telegram_send("Current password accepted. Send the new password (minimum 8 characters).", _back_keyboard(is_premium_user(user)), chat_id)
+            return
+        if security_step == "password_new":
+            if len(text) < 8:
+                telegram_send("New password must contain at least 8 characters.", _back_keyboard(is_premium_user(user)), chat_id)
+                return
+            _PENDING_SECURITY[chat_id] = "password_confirm:" + text
+            telegram_send("Send the new password again to confirm it.", _back_keyboard(is_premium_user(user)), chat_id)
+            return
+        if security_step.startswith("password_confirm:"):
+            new_password = security_step.split(":", 1)[1]
+            _PENDING_SECURITY.pop(chat_id, None)
+            if text != new_password:
+                telegram_send("Password confirmation failed. Start again from Account Security.", security_keyboard(is_premium_user(user)), chat_id)
+                return
+            set_setting("password", hash_password(new_password))
+            with db() as con:
+                con.execute("DELETE FROM sessions")
+            telegram_send("Password changed successfully. All web sessions were revoked.", security_keyboard(is_premium_user(user)), chat_id)
+            return
 
     pending = _PENDING_CHECKS.pop(chat_id, None)
     if pending and text and not text.startswith("/"):

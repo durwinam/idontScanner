@@ -20,6 +20,7 @@ def peer_certificate_details(ssl_obj):
         "subject": "",
         "issuer": "",
         "expires": "",
+        "valid_from": "",
         "san": "",
     }
     if not ssl_obj:
@@ -38,6 +39,7 @@ def peer_certificate_details(ssl_obj):
             for item in part
         )
         details["expires"] = cert.get("notAfter", "")
+        details["valid_from"] = cert.get("notBefore", "")
         details["san"] = ", ".join(
             item[1]
             for item in cert.get("subjectAltName", [])
@@ -109,6 +111,8 @@ def _tls_probe_sync(domain: str, connect_target: str | None = None):
             "cert_subject": details["subject"],
             "cert_issuer": details["issuer"],
             "cert_expires": details["expires"],
+            "cert_valid_from": details["valid_from"],
+            "cert_valid": True,
             "cert_san": details["san"],
             "error": None,
         }
@@ -252,6 +256,9 @@ def _probe_sni_sync(connect_ip: str, sni_host: str):
             "sni_alpn": tls_sock.selected_alpn_protocol(),
             "sni_cipher": tls_sock.cipher()[0] if tls_sock.cipher() else None,
             "sni_cert_san": details["san"],
+            "sni_cert_valid_from": details["valid_from"],
+            "sni_cert_expires": details["expires"],
+            "sni_cert_valid": True,
             "sni_verified": True,
             "error": None,
         }

@@ -91,6 +91,11 @@ def init_db():
         );
 
         INSERT OR IGNORE INTO scheduler(id) VALUES(1);
+
+        INSERT OR IGNORE INTO settings(key, value) VALUES ('theme', 'dark');
+        INSERT OR IGNORE INTO settings(key, value) VALUES ('resource_chart_style', 'hybrid');
+        INSERT OR IGNORE INTO settings(key, value) VALUES ('resource_range', '60');
+        INSERT OR IGNORE INTO settings(key, value) VALUES ('animations', '1');
     """
 
     with db() as con:

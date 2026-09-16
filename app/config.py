@@ -35,7 +35,7 @@ DEFAULT_PORT = 443
 APP_VERSION = (
     (BASE / "VERSION").read_text(encoding="utf-8").strip()
     if (BASE / "VERSION").exists()
-    else "v3.6.2"
+    else "v4.0.0"
 )
 UPDATE_VERSION_URL = "https://raw.githubusercontent.com/durwinam/idontScanner/main/VERSION"
 
@@ -150,5 +150,6 @@ TARGET_BENCHMARK_COUNT = 3000
 TARGET_CUSTOM_LIMIT = 20
 TARGET_BENCHMARK_SECONDS = 30.0
 TARGET_PROBE_CONCURRENCY = 32
+LOG_MAX_BYTES = 15 * 1024 * 1024
 TRANCO_TARGET_URL = "https://tranco-list.eu/top-1m.csv.zip"
 TARGET_CATALOG_PATH = DATA_DIR / "target_catalog.txt"

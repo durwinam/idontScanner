@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 import hmac
 import ipaddress
 import json
@@ -28,6 +29,7 @@ from app.config import (
     APP_VERSION,
     BASE,
     BASE_PATH,
+    DATA_DIR,
     SECRET,
     TIMEOUT,
     UPDATE_VERSION_URL,
@@ -68,7 +70,10 @@ from app.security import (
     valid_domain,
 )
 from app.telegram import telegram_request
+from app.logging_setup import configure_logging
 
+
+logger = configure_logging()
 
 app = FastAPI(
     title="idontScanner",
@@ -108,13 +113,18 @@ async def security_headers(request: Request, call_next):
         "camera=(), microphone=(), geolocation=()"
     )
 
-    if request.url.path.startswith("/api/") or request.url.path in {
-        "/login/",
-        "/logout/",
-    }:
+    # Dynamic authenticated HTML contains persisted preferences such as the
+    # selected theme. Never let the browser reuse an older rendered page after
+    # a preference change; static assets can still be cached normally.
+    is_static = request.url.path.startswith("/static/")
+    is_api = request.url.path.startswith("/api/")
+    is_auth_route = request.url.path in {"/login/", "/logout/"}
+    if not is_static:
+        response.headers["Cache-Control"] = "no-store"
+    elif is_api or is_auth_route:
         response.headers["Cache-Control"] = "no-store"
     else:
-        response.headers["Cache-Control"] = "private, max-age=60"
+        response.headers["Cache-Control"] = "public, max-age=3600"
 
     return response
 
@@ -158,6 +168,10 @@ def _page_context(request: Request, **extra):
         "server_ip": server_ip(),
         "scheduler": scheduler,
         "sessions": sessions,
+        "theme": get_setting("theme", "dark"),
+        "resource_chart_style": get_setting("resource_chart_style", "hybrid"),
+        "resource_range": int(get_setting("resource_range", "60") or 60),
+        "animations": get_setting("animations", "1") == "1",
         **extra,
     }
 
@@ -168,6 +182,7 @@ async def startup():
     global scheduler_task, telegram_task
 
     init_db()
+    logger.info("idontScanner %s started", APP_VERSION)
 
     from app.scheduler import scheduler_loop
     from app.telegram import telegram_loop
@@ -179,6 +194,7 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     """Stop background workers during application shutdown."""
+    logger.info("idontScanner shutdown")
     for task in (scheduler_task, telegram_task):
         if task:
             task.cancel()
@@ -420,6 +436,50 @@ async def update_check(request: Request):
     }
 
 
+@app.get("/api/system/health")
+async def system_health(request: Request):
+    if not require_auth(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+
+    checks = {
+        "api": True,
+        "database": False,
+        "scanner": True,
+        "telegram": bool(get_setting("telegram_token")),
+    }
+    try:
+        with db() as con:
+            con.execute("SELECT 1").fetchone()
+        checks["database"] = True
+    except sqlite3.Error:
+        checks["database"] = False
+
+    memory = await asyncio.to_thread(_memory_stats)
+    disk = await asyncio.to_thread(_disk_stats)
+    cpu = await _cpu_percent()
+    resource_ok = cpu < 90 and memory[0] < 90 and disk[0] < 90
+    healthy = checks["api"] and checks["database"] and checks["scanner"] and resource_ok
+    score = round(sum([
+        25 if checks["api"] else 0,
+        25 if checks["database"] else 0,
+        15 if checks["scanner"] else 0,
+        10 if checks["telegram"] else 10,
+        10 if cpu < 90 else 0,
+        10 if memory[0] < 90 else 0,
+        5 if disk[0] < 90 else 0,
+    ]))
+    return {
+        "healthy": healthy,
+        "score": score,
+        "checks": checks,
+        "resources": {"cpu": cpu, "memory": memory[0], "disk": disk[0]},
+        "uptime": _uptime(),
+        "log_bytes": (DATA_DIR / "idontscanner.log").stat().st_size if (DATA_DIR / "idontscanner.log").exists() else 0,
+        "log_limit": 15 * 1024 * 1024,
+        "timestamp": int(time.time()),
+    }
+
+
 @app.get("/api/system/stats")
 async def system_stats(request: Request):
     if not require_auth(request):
@@ -481,6 +541,27 @@ async def dashboard(request: Request):
             latest=latest,
             active="dashboard",
         ),
+    )
+
+
+@app.get("/sni/", response_class=HTMLResponse)
+async def sni_page(request: Request):
+    """Dedicated SNI/TLS entry point; avoids query-string routing issues in some proxies."""
+    if not require_auth(request):
+        return _redirect_to_login()
+
+    with db() as con:
+        domains = con.execute(
+            """
+            SELECT *
+            FROM domains
+            ORDER BY is_default DESC, label COLLATE NOCASE
+            """
+        ).fetchall()
+
+    return templates.TemplateResponse(
+        "scanner.html",
+        _page_context(request, domains=domains, active="scanner", scanner_mode="sni"),
     )
 
 
@@ -584,24 +665,75 @@ async def _target_probe(domain: str):
     return result
 
 
+def _certificate_lifetime_quality(item) -> float:
+    """Score remaining certificate lifetime without treating long-lived certs as inherently superior."""
+    raw = item.get("cert_expires") or ""
+    if not raw:
+        return 0.0
+    try:
+        from email.utils import parsedate_to_datetime
+        expires = parsedate_to_datetime(raw)
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        remaining_days = max(0.0, (expires - datetime.now(timezone.utc)).total_seconds() / 86400)
+    except Exception:
+        return 0.0
+    if remaining_days <= 0:
+        return 0.0
+    if remaining_days >= 180:
+        return 1.0
+    return min(1.0, remaining_days / 180.0)
+
+
+def _san_quality(item) -> float:
+    """Certificate-backed SNI quality, kept separate from network performance."""
+    if item.get("status") != "ok":
+        return 0.0
+    san_names = certificate_sni_candidates(item.get("cert_san", ""), item.get("domain", ""))
+    has_san = bool(san_names)
+    verified = bool(item.get("best_sni") or item.get("sni_ok"))
+    concrete_quality = min(1.0, len(san_names) / 4.0) if has_san else 0.0
+    cert_quality = 1.0 if item.get("cert_expires") else 0.0
+    return (verified * 0.45) + (has_san * 0.20) + (concrete_quality * 0.15) + (cert_quality * 0.10) + (_certificate_lifetime_quality(item) * 0.10)
+
+
 def _benchmark_score(item, ranking):
     if item.get("status") != "ok":
         return -1.0
     latency = float(item.get("latency_ms") or 9999)
     tls = item.get("tls_version") or ""
     alpn = item.get("alpn") or ""
-    host = 1 if item.get("host_ok") else 0
-    sni = 1 if item.get("sni_ok") else 0
     tls_quality = 1.0 if tls == "TLSv1.3" else 0.85 if tls == "TLSv1.2" else 0.35
     alpn_quality = 1.0 if alpn == "h2" else 0.7 if alpn == "http/1.1" else 0.3
     latency_quality = max(0.0, min(1.0, 1.0 - latency / 500.0))
+    # A single benchmark handshake cannot prove long-term uptime. The stability
+    # component therefore rewards a clean completed probe but is deliberately
+    # capped; Deep Diagnostics performs the stronger repeated-path checks.
+    stability_quality = 1.0 if item.get("host_ok") and item.get("tls_version") else 0.0
+    cert_quality = 1.0 if item.get("cert_expires") else 0.0
+    lifetime_quality = _certificate_lifetime_quality(item)
+    san_quality = _san_quality(item)
+
     if ranking == "latency":
         return latency_quality * 100
     if ranking == "tls":
-        return (tls_quality * .55 + alpn_quality * .2 + latency_quality * .15 + host * .05 + sni * .05) * 100
+        return (san_quality * .40 + tls_quality * .22 + alpn_quality * .14 + latency_quality * .10 + cert_quality * .08 + lifetime_quality * .06) * 100
     if ranking == "stability":
-        return (host * .3 + sni * .3 + tls_quality * .2 + alpn_quality * .1 + latency_quality * .1) * 100
-    return (latency_quality * .35 + tls_quality * .25 + alpn_quality * .15 + host * .125 + sni * .125) * 100
+        return (san_quality * .40 + stability_quality * .25 + latency_quality * .12 + tls_quality * .10 + cert_quality * .07 + lifetime_quality * .06) * 100
+    # Balanced v4 ranking: SAN quality owns exactly 40%; remaining factors are
+    # independent so performance/protocol properties are not double-counted.
+    return (
+        san_quality * .40
+        + latency_quality * .15
+        + stability_quality * .12
+        + tls_quality * .10
+        + alpn_quality * .07
+        + cert_quality * .06
+        + lifetime_quality * .04
+        + 0.5 * .03  # X25519: Python/OpenSSL does not expose the negotiated group reliably.
+        + 0.5 * .02  # HTTP/3 advertisement: checked in deeper diagnostics when available.
+        + 0.5 * .01  # PQ: neutral when the local TLS stack cannot verify it.
+    ) * 100
 
 
 async def _best_effort_isp(ip: str):
@@ -609,7 +741,7 @@ async def _best_effort_isp(ip: str):
         return None
     def fetch():
         try:
-            req=urllib.request.Request(f"https://ipwho.is/{ip}", headers={"User-Agent":"idontScanner/3.6.2"})
+            req=urllib.request.Request(f"https://ipwho.is/{ip}", headers={"User-Agent":"idontScanner/4.0.0"})
             with urllib.request.urlopen(req, timeout=1.5) as r:
                 data=json.loads(r.read(12000).decode("utf-8","replace"))
             conn=data.get("connection") or {}
@@ -760,12 +892,26 @@ async def target_details(request: Request):
     except TimeoutError:
         return JSONResponse({"error": "Deep diagnostics timed out. Try the target again."}, status_code=504)
 
+    score_item = dict(probe)
+    score_item["best_sni"] = sni_probe
+    score_item["host_ok"] = probe.get("status") == "ok" and probe.get("tcp_ms") is not None
+    score_item["sni_ok"] = bool(sni_probe and sni_probe.get("sni_verified")) or probe.get("status") == "ok"
+    san_q = _san_quality(score_item)
+    latency_q = max(0.0, min(1.0, 1.0 - float(probe.get("latency_ms") or 9999) / 500.0))
+    stability_q = 1.0 if score_item["host_ok"] and probe.get("tls_version") else 0.0
+    tls_q = 1.0 if probe.get("tls_version") == "TLSv1.3" else 0.85 if probe.get("tls_version") == "TLSv1.2" else 0.35
+    alpn_q = 1.0 if probe.get("alpn") == "h2" else 0.7 if probe.get("alpn") == "http/1.1" else 0.3
+    cert_q = 1.0 if probe.get("cert_expires") else 0.0
+    lifetime_q = _certificate_lifetime_quality(probe)
+    score_breakdown = {"san_quality": round(san_q * 40, 1), "latency": round(latency_q * 15, 1), "stability": round(stability_q * 12, 1), "tls13": round(tls_q * 10, 1), "http2_alpn": round(alpn_q * 7, 1), "certificate": round(cert_q * 6, 1), "certificate_lifetime": round(lifetime_q * 4, 1), "x25519": 1.5, "http3": 1.0, "post_quantum": 0.5}
     deep_score = _deep_quality_score(vps, iran, probe, sni_probe)
     duration_ms = round((time.perf_counter() - started) * 1000, 1)
     return {
         "domain": domain,
         "endpoint": f"{domain}:443",
         "score": body.get("score"),
+        "score_breakdown": score_breakdown,
+        "san_quality": round(san_q * 100, 1),
         "deep_score": deep_score,
         "isp": body.get("isp"),
         "target": probe,
@@ -896,7 +1042,20 @@ async def target_benchmark(request: Request):
             item["sni_tls_version"] = item.get("tls_version")
             item["sni_alpn"] = item.get("alpn")
             item["sni_source"] = "direct host"
-        item["score"] = round(min(100.0, float(item.get("score") or 0) + sni_bonus), 1)
+        # Re-score after SAN probing so the certificate-backed relationship can
+        # contribute its full 40% share in the balanced ranking.
+        item["san_quality"] = round(_san_quality(item) * 100, 1)
+        item["score"] = round(max(0.0, min(100.0, _benchmark_score(item, ranking))), 1)
+        item["score_breakdown"] = {
+            "san_quality": round(_san_quality(item) * 40, 1),
+            "latency": round(max(0.0, min(1.0, 1.0 - float(item.get("latency_ms") or 9999) / 500.0)) * 15, 1),
+            "stability": round((1.0 if item.get("host_ok") and item.get("tls_version") else 0.0) * 12, 1),
+            "tls13": round((1.0 if item.get("tls_version") == "TLSv1.3" else 0.85 if item.get("tls_version") == "TLSv1.2" else 0.35) * 10, 1),
+            "http2_alpn": round((1.0 if item.get("alpn") == "h2" else 0.7 if item.get("alpn") == "http/1.1" else 0.3) * 7, 1),
+            "certificate": round((1.0 if item.get("cert_expires") else 0.0) * 6, 1),
+            "certificate_lifetime": round(_certificate_lifetime_quality(item) * 4, 1),
+            "x25519": 1.5, "http3": 1.0, "post_quantum": 0.5,
+        }
 
     results.sort(key=lambda x:(-x["score"], float(x.get("latency_ms") or 99999)))
     top=results[:limit]
@@ -975,9 +1134,29 @@ async def settings_page(request: Request):
 
     return templates.TemplateResponse(
         "settings.html",
+        _page_context(request, active="settings"),
+    )
+
+
+@app.get("/system-health/", response_class=HTMLResponse)
+async def system_health_page(request: Request):
+    if not require_auth(request):
+        return _redirect_to_login()
+    return templates.TemplateResponse(
+        "system_health.html",
+        _page_context(request, active="health"),
+    )
+
+
+@app.get("/telegram/", response_class=HTMLResponse)
+async def telegram_page(request: Request):
+    if not require_auth(request):
+        return _redirect_to_login()
+    return templates.TemplateResponse(
+        "telegram.html",
         _page_context(
             request,
-            active="settings",
+            active="telegram",
             telegram_configured=bool(get_setting("telegram_token")),
             telegram_owner_id=telegram_owner_id(),
             telegram_admin_ids=", ".join(sorted(telegram_admin_ids())),
@@ -1223,6 +1402,40 @@ async def change_username(request: Request):
     return {"ok": True}
 
 
+@app.get("/api/preferences")
+async def preferences_get(request: Request):
+    if not require_auth(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return {
+        "theme": get_setting("theme", "dark"),
+        "resource_chart_style": get_setting("resource_chart_style", "hybrid"),
+        "resource_range": int(get_setting("resource_range", "60") or 60),
+        "animations": get_setting("animations", "1") == "1",
+    }
+
+
+@app.post("/api/preferences")
+async def preferences_update(request: Request):
+    body, error = await _authorized_json(request)
+    if error:
+        return error
+    themes = {"dark", "light", "aurora", "violet", "ocean", "rose", "mint", "amber", "midnight"}
+    chart_styles = {"hybrid", "circular", "linear", "minimal"}
+    theme = str(body.get("theme", "dark"))
+    chart_style = str(body.get("resource_chart_style", "hybrid"))
+    try:
+        resource_range = int(body.get("resource_range", 60))
+    except (TypeError, ValueError):
+        resource_range = 60
+    if theme not in themes or chart_style not in chart_styles or resource_range not in {30, 60, 120, 300}:
+        return JSONResponse({"error": "invalid preference"}, status_code=400)
+    set_setting("theme", theme)
+    set_setting("resource_chart_style", chart_style)
+    set_setting("resource_range", str(resource_range))
+    set_setting("animations", "1" if body.get("animations", True) else "0")
+    return {"ok": True, "theme": theme, "resource_chart_style": chart_style, "resource_range": resource_range, "animations": bool(body.get("animations", True))}
+
+
 @app.post("/api/scheduler")
 async def scheduler_update(request: Request):
     body, error = await _authorized_json(request)
@@ -1302,6 +1515,26 @@ async def telegram_status(request: Request):
             "owner_id": owner_id,
             "admin_ids": admin_ids,
         }
+
+
+@app.post("/api/telegram/test")
+async def telegram_test(request: Request):
+    body, error = await _authorized_json(request)
+    if error:
+        return error
+    token = get_setting("telegram_token")
+    if not token:
+        return JSONResponse({"error": "Telegram bot is not configured."}, status_code=400)
+    try:
+        result = await asyncio.to_thread(telegram_request, token, "getMe", {})
+        if not result.get("ok"):
+            description = result.get("description") or "Telegram rejected the bot token."
+            return JSONResponse({"error": description}, status_code=400)
+        bot = result.get("result", {})
+        username = bot.get("username", "")
+        return {"ok": True, "username": username, "name": bot.get("first_name", ""), "url": f"https://t.me/{username}" if username else ""}
+    except Exception as exc:
+        return JSONResponse({"error": f"Telegram connection test failed: {exc}"}, status_code=502)
 
 
 @app.post("/api/telegram")
@@ -1495,15 +1728,21 @@ async def connection_check(request: Request):
     except ValueError as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
 
-    result = await diagnose_config(config)
-    result["service_tests"] = await probe_services()
+    started = time.perf_counter()
     try:
-        result["connection_quality"] = await asyncio.to_thread(measure_network_quality)
-    except Exception as exc:
-        result["connection_quality"] = {
-            "status": "unavailable",
-            "error": str(exc)[:180],
-        }
+        async with asyncio.timeout(10.0):
+            result = await diagnose_config(config)
+            services_task = asyncio.create_task(probe_services())
+            quality_task = asyncio.create_task(asyncio.to_thread(measure_network_quality))
+            service_tests, quality = await asyncio.gather(services_task, quality_task, return_exceptions=True)
+            result["service_tests"] = service_tests if isinstance(service_tests, dict) else {}
+            if isinstance(quality, Exception):
+                result["connection_quality"] = {"status": "unavailable", "error": str(quality)[:180]}
+            else:
+                result["connection_quality"] = quality
+            result["test_duration_ms"] = round((time.perf_counter() - started) * 1000, 1)
+    except TimeoutError:
+        return JSONResponse({"error": "Connection test exceeded the 10-second limit."}, status_code=504)
     return result
 
 
