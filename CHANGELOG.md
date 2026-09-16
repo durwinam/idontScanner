@@ -1,3 +1,17 @@
+# v4.0.2
+
+- Fixed the mobile boot loading screen animations.
+- Boot orbit, logo pulse, and progress bar now animate reliably even when interface animations are disabled.
+- Progress bar now visibly fills during startup.
+- Increased the mobile boot screen minimum display time for smoother rendering.
+- Fixed `update.sh` catalog validation so the Python `tools` package is resolved correctly.
+- Bumped installer/runtime identifiers to v4.0.2.
+- Reworked Telegram inline keyboards to use stable Bot API fields, removing slow compatibility fallbacks.
+- Fixed Account Security navigation and added Change Username, Change Password, Reset Password, Logout All Sessions, and Enable/Disable 2FA.
+- Added TOTP-based 2FA verification for web panel login.
+- Added per-IP login throttling: 3 failures → 5 minutes, 4 failures → 20 minutes, 5 failures → permanent IP block.
+- Added Telegram security alerts for successful/failed logins and sensitive security actions without exposing passwords or OTP secrets.
+
 # v4.0.1
 
 - Fixed the Telegram Account Security menu so its actions render reliably.

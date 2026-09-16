@@ -78,7 +78,7 @@ catalog_count() {
     # TLDs (for example xn--...) and made a real 3,000-line catalog appear as
     # only ~2,300 domains during update.
     if [[ -x "$APP_DIR/.venv/bin/python" && -f "$APP_DIR/tools/sync_target_catalog.py" ]]; then
-        "$APP_DIR/.venv/bin/python" - "$file" <<'PYCOUNT'
+        env PYTHONPATH="$APP_DIR" "$APP_DIR/.venv/bin/python" - "$file" <<'PYCOUNT'
 import sys
 from pathlib import Path
 from tools.sync_target_catalog import valid_domain
