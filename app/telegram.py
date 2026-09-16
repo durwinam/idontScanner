@@ -138,8 +138,8 @@ BUTTON_ICONS = {
     "security_password": "🔐",
     "security_reset": "🔄",
     "security_logout": "🚪",
-    "security_2fa_enable": "🛡️",
-    "security_2fa_disable": "🛡️",
+    "security_2fa_enable": "🔒",
+    "security_2fa_disable": "🔒",
 }
 
 
@@ -212,15 +212,21 @@ def ui_emoji(emoji: str, premium: bool = True) -> str:
 
 
 def button(text: str, callback_data: str, premium: bool = True) -> dict:
-    """Build a standard Bot API inline button.
+    """Build a modern Telegram inline button with native icon + color support.
 
-    Telegram clients do not consistently support experimental button styling
-    fields, so the bot uses stable callback buttons and Unicode icons. This
-    avoids fallback timeouts and keeps menus responsive.
+    Bot API 9.4+ supports ``icon_custom_emoji_id`` and ``style`` directly on
+    InlineKeyboardButton.  We keep a Unicode fallback for older clients or
+    bots that are not eligible to use custom emoji buttons.
     """
     icon = BUTTON_ICONS.get(callback_data, "🔵")
-    label = text if text.startswith(icon) else f"{icon} {text}"
-    return {"text": label, "callback_data": callback_data}
+    style = BUTTON_STYLES.get(callback_data, "primary")
+    emoji_id = PREMIUM_EMOJIS.get(icon)
+    result = {"text": text, "callback_data": callback_data, "style": style}
+    if emoji_id:
+        result["icon_custom_emoji_id"] = emoji_id
+    else:
+        result["text"] = f"{icon} {text}"
+    return result
 
 
 def main_keyboard(premium: bool = True) -> dict:
@@ -238,28 +244,33 @@ def main_keyboard(premium: bool = True) -> dict:
 
 
 def security_keyboard(premium: bool = True) -> dict:
-    """Account Security actions using stable Telegram Bot API buttons."""
-    two_fa_label = "Disable 2FA" if totp_enabled() else "Enable 2FA"
-    two_fa_action = "security_2fa_disable" if totp_enabled() else "security_2fa_enable"
+    """Account Security menu with native colored Premium-emoji buttons."""
+    two_fa_enabled = totp_enabled()
+    two_fa_label = "Disable 2FA" if two_fa_enabled else "Enable 2FA"
+    two_fa_action = "security_2fa_disable" if two_fa_enabled else "security_2fa_enable"
     return {
         "inline_keyboard": [
-            [button("Change Username", "security_username", premium)],
-            [button("Change Password", "security_password", premium)],
-            [button("Reset Password", "security_reset", premium)],
-            [button(two_fa_label, two_fa_action, premium)],
+            [
+                button("Change Username", "security_username", premium),
+                button("Change Password", "security_password", premium),
+            ],
+            [
+                button("Reset Password", "security_reset", premium),
+                button(two_fa_label, two_fa_action, premium),
+            ],
             [button("Logout All Sessions", "security_logout", premium)],
             [button("Back to Menu", "menu", premium)],
         ]
     }
 
 
-def security_text() -> str:
+def security_text(premium: bool = True) -> str:
     status = "Enabled" if totp_enabled() else "Disabled"
     return (
-        f"<b>{ui_emoji('🔒', True)} Account Security</b>\n"
+        f"<b>{ui_emoji('🔒', premium)} Account Security</b>\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "Please select an option from the menu below.\n\n"
-        f"{ui_emoji('🛡️', True)} Two-Factor Authentication: <b>{status}</b>"
+        f"{ui_emoji('🔒', premium)} Two-Factor Authentication: <b>{status}</b>"
     )
 
 
@@ -472,7 +483,24 @@ def format_check_results(check: dict, result: dict, premium: bool) -> str:
 
 
 def _legacy_markup(markup: dict | None) -> dict | None:
-    return markup
+    """Strip Bot API 9.4 button styling for legacy/fallback clients."""
+    if not markup or "inline_keyboard" not in markup:
+        return markup
+    rows = []
+    for row in markup.get("inline_keyboard", []):
+        legacy_row = []
+        for item in row:
+            item = dict(item)
+            icon_id = item.pop("icon_custom_emoji_id", None)
+            item.pop("style", None)
+            if icon_id:
+                # Keep a visible fallback icon when the native button icon is unavailable.
+                callback = item.get("callback_data", "")
+                icon = BUTTON_ICONS.get(callback, "🔵")
+                item["text"] = f"{icon} {item.get('text', '')}"
+            legacy_row.append(item)
+        rows.append(legacy_row)
+    return {"inline_keyboard": rows}
 
 
 def edit_message(token: str, chat_id: int, message_id: int, text: str, markup: dict | None = None):
@@ -487,12 +515,25 @@ def edit_message(token: str, chat_id: int, message_id: int, text: str, markup: d
     try:
         return telegram_request(token, "editMessageText", payload)
     except Exception:
-        # Do not leave a working menu blank if the Telegram client/bot account
-        # cannot use the newer colored/custom-emoji button fields.
+        # Retry once without Bot API 9.4 button decoration. This keeps the
+        # interaction usable if the bot/client is not eligible for native
+        # custom-emoji icons or colored button styles.
         if markup is None:
             raise
-        payload["reply_markup"] = _legacy_markup(markup)
-        return telegram_request(token, "editMessageText", payload)
+        legacy = _legacy_markup(markup)
+        payload["reply_markup"] = legacy
+        try:
+            return telegram_request(token, "editMessageText", payload)
+        except Exception:
+            # If the message itself cannot be edited, send the requested view
+            # as a fresh message rather than leaving the callback apparently dead.
+            send_payload = {
+                "chat_id": chat_id,
+                "text": text,
+                "parse_mode": "HTML",
+                "reply_markup": legacy,
+            }
+            return telegram_request(token, "sendMessage", send_payload)
 
 
 def callback_response(token: str, callback_id: str):
@@ -619,7 +660,7 @@ async def handle_callback(token: str, callback: dict):
         if str(chat_id) != telegram_owner_id():
             await edit_message_async(token, chat_id, message_id, "<b>Owner access required.</b>", _back_keyboard(premium))
             return
-        await edit_message_async(token, chat_id, message_id, security_text(), security_keyboard(premium))
+        await edit_message_async(token, chat_id, message_id, security_text(premium), security_keyboard(premium))
         return
 
     if action == "security_username":
@@ -650,7 +691,7 @@ async def handle_callback(token: str, callback: dict):
         if str(chat_id) != telegram_owner_id():
             return
         if totp_enabled():
-            await edit_message_async(token, chat_id, message_id, security_text(), security_keyboard(premium))
+            await edit_message_async(token, chat_id, message_id, security_text(premium), security_keyboard(premium))
             return
         secret = new_totp_secret()
         _PENDING_SECURITY[chat_id] = "2fa_enable:" + secret
@@ -867,6 +908,29 @@ async def handle_text_message(token: str, message: dict):
             await telegram_send_async(f"<b>Ping failed</b>\n<code>{html.escape(str(exc)[:180])}</code>", chat_id=chat_id)
 
 
+async def _safe_handle_callback(token: str, callback: dict):
+    try:
+        await handle_callback(token, callback)
+    except Exception as exc:
+        # Keep the polling loop alive and surface the failure in the application log.
+        try:
+            from app.logging_setup import get_logger
+            get_logger().exception("Telegram callback failed: %s", exc)
+        except Exception:
+            pass
+
+
+async def _safe_handle_text_message(token: str, message: dict):
+    try:
+        await handle_text_message(token, message)
+    except Exception as exc:
+        try:
+            from app.logging_setup import get_logger
+            get_logger().exception("Telegram message handler failed: %s", exc)
+        except Exception:
+            pass
+
+
 async def telegram_loop():
     """Poll Telegram and handle authorized private-chat interactions."""
     offset = 0
@@ -887,9 +951,9 @@ async def telegram_loop():
                 offset = update["update_id"] + 1
                 callback = update.get("callback_query")
                 if callback:
-                    asyncio.create_task(handle_callback(token, callback))
+                    asyncio.create_task(_safe_handle_callback(token, callback))
                     continue
                 message = update.get("message") or {}
-                asyncio.create_task(handle_text_message(token, message))
+                asyncio.create_task(_safe_handle_text_message(token, message))
         except Exception:
             await asyncio.sleep(5)
