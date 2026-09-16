@@ -24,7 +24,7 @@ overlay?.addEventListener("click", closeMenu);
     const loader=document.getElementById("appBootLoader");
     if(!loader) return;
     const startedAt=performance.now();
-    const minVisible=window.matchMedia("(max-width: 760px)").matches ? 900 : 650;
+    const minVisible=window.matchMedia("(max-width: 760px)").matches ? 1500 : 900;
     let hidden=false;
     const hide=()=>{
       if(hidden) return;
