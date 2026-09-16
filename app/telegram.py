@@ -214,7 +214,11 @@ def button(text: str, callback_data: str, premium: bool = True) -> dict:
         "style": BUTTON_STYLES.get(callback_data, "primary"),
     }
 
-    if premium and icon in PREMIUM_EMOJIS:
+    # Custom button icons are a bot capability, not a per-viewer preference.
+    # Use the supplied Premium custom emoji whenever an ID is available.
+    # edit_message/sendMessage below have a compatibility fallback for clients
+    # or Bot API environments that reject the newer button fields.
+    if icon in PREMIUM_EMOJIS:
         item["icon_custom_emoji_id"] = PREMIUM_EMOJIS[icon]
     else:
         item["text"] = f"{icon} {text}"
@@ -249,7 +253,7 @@ def security_keyboard(premium: bool = True) -> dict:
 
 def security_text() -> str:
     return (
-        "<b>🔒 Account Security</b>\n"
+        f"<b>{ui_emoji('🔒', True)} Account Security</b>\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "Manage the panel administrator credentials and active web sessions.\n\n"
         "Only the configured Telegram Owner can use these actions.\n"
@@ -465,6 +469,28 @@ def format_check_results(check: dict, result: dict, premium: bool) -> str:
     return "\n".join(lines)
 
 
+def _legacy_markup(markup: dict | None) -> dict | None:
+    """Strip Bot API 9.4 button styling/custom-icon fields for compatibility."""
+    if not markup:
+        return markup
+    rows = []
+    for row in markup.get("inline_keyboard", []):
+        clean_row = []
+        for item in row:
+            clean = dict(item)
+            clean.pop("style", None)
+            clean.pop("icon_custom_emoji_id", None)
+            # Preserve the visual fallback icon when custom icons are unavailable.
+            if "callback_data" in clean:
+                action = clean.get("callback_data", "")
+                icon = BUTTON_ICONS.get(action)
+                if icon and icon not in clean.get("text", ""):
+                    clean["text"] = f"{icon} {clean.get('text', '')}"
+            clean_row.append(clean)
+        rows.append(clean_row)
+    return {"inline_keyboard": rows}
+
+
 def edit_message(token: str, chat_id: int, message_id: int, text: str, markup: dict | None = None):
     payload = {
         "chat_id": chat_id,
@@ -474,7 +500,15 @@ def edit_message(token: str, chat_id: int, message_id: int, text: str, markup: d
     }
     if markup is not None:
         payload["reply_markup"] = markup
-    return telegram_request(token, "editMessageText", payload)
+    try:
+        return telegram_request(token, "editMessageText", payload)
+    except Exception:
+        # Do not leave a working menu blank if the Telegram client/bot account
+        # cannot use the newer colored/custom-emoji button fields.
+        if markup is None:
+            raise
+        payload["reply_markup"] = _legacy_markup(markup)
+        return telegram_request(token, "editMessageText", payload)
 
 
 def callback_response(token: str, callback_id: str):
@@ -486,12 +520,17 @@ def callback_response(token: str, callback_id: str):
 
 def send_dashboard(token: str, chat_id: int, user: dict):
     premium = is_premium_user(user)
-    return telegram_request(token, "sendMessage", {
+    payload = {
         "chat_id": chat_id,
         "text": menu_text(premium, user.get("first_name")),
         "parse_mode": "HTML",
         "reply_markup": main_keyboard(premium),
-    })
+    }
+    try:
+        return telegram_request(token, "sendMessage", payload)
+    except Exception:
+        payload["reply_markup"] = _legacy_markup(payload["reply_markup"])
+        return telegram_request(token, "sendMessage", payload)
 
 
 async def run_check_host_flow(token: str, chat_id: int, user: dict, check_type: str, target: str, group: str):
