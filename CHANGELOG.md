@@ -1,3 +1,14 @@
+# v4.0.0
+
+- Split interface Settings and Telegram integration into separate sections.
+- Added nine coordinated UI themes and persistent resource visualization preferences.
+- Added Hybrid CPU/Memory/Disk gauge + live graph visualization.
+- Added dedicated System Health page with bounded, on-demand checks.
+- Added 15 MB single-file log rotation.
+- Added Owner-only Telegram Account Security actions for username/password changes, password reset, and session revocation using the configured Premium Custom Emoji IDs.
+- Preserved the existing main boot loading screen.
+- Kept resource polling and diagnostics bounded to avoid unnecessary background CPU/RAM/Disk pressure.
+
 ## v3.6.2 — Release
 - Ranked up to 10 certificate-backed SNI candidates in Target details.
 - Based on the v3.6.1 source with the existing UI, loader, update flow, and 3,000-target catalog behavior retained.
