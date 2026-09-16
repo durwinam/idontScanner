@@ -22,7 +22,7 @@ import zipfile
 from pathlib import Path
 
 COUNT_DEFAULT = 3000
-USER_AGENT = "idontScanner-target-catalog/4.0.2"
+USER_AGENT = "idontScanner-target-catalog/4.0.3"
 
 SOURCES = [
     # Prefer the official ranking, then GitHub mirrors/cache endpoints that
