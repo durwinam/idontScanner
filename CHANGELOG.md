@@ -1,3 +1,11 @@
+# v4.0.1
+
+- Fixed the Telegram Account Security menu so its actions render reliably.
+- Added compatibility fallback for Telegram button styles and Premium custom emoji.
+- Enabled the supplied Premium custom emoji IDs across supported Telegram buttons.
+- Kept colored `primary`, `success`, and `danger` button styles for supported clients.
+- Added Account Security actions for Change Username, Change Password, Reset Password, and Logout All Sessions.
+
 # v4.0.0
 
 - Split interface Settings and Telegram integration into separate sections.

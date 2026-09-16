@@ -55,7 +55,7 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 
 ```bash
 unzip idontScanner-v4.0.0.zip
-cd idontScanner-v4.0.0
+cd idontScanner-4.0.0
 sudo bash install.sh --fresh
 ```
 
@@ -64,7 +64,7 @@ sudo bash install.sh --fresh
 ---
 
 <p align="center">
-  <img src="static/logo/IMG_0397.jpg" alt="idontScanner Logo" width="420">
+  <img src="static/logo/IMG_0397.jpeg" alt="idontScanner Logo" width="420">
 </p>
 
 ## 🔄 Update بدون نصب مجدد
@@ -251,7 +251,7 @@ Telegram اختیاری است و با **Polling** کار می‌کند؛ بنا
 /status
 ```
 <p align="center">
-  <img src="static/logo/IMG_0399.jpg" alt="idontScanner" width="420">
+  <img src="static/logo/IMG_0399.jpeg" alt="idontScanner" width="420">
 </p>
 ---
 
@@ -293,7 +293,7 @@ Scheduler به‌صورت پیش‌فرض خاموش است و تنظیماتش 
 ## 🗂️ ساختار پروژه
 
 ```text
-idontScanner-3.5.7/
+idontScanner-4.0.0/
 ├── app/
 │   ├── auth.py
 │   ├── config.py
@@ -341,7 +341,7 @@ sudo bash install.sh --fresh
 ⚠️ این حالت دیتابیس، History، Domainها، Telegram، Scheduler و حساب کاربری قبلی را حذف می‌کند.
 
 <p align="center">
-  <img src="static/logo/IMG_0398.jpg" alt="idontScanner" width="420">
+  <img src="static/logo/IMG_0398.jpeg" alt="idontScanner" width="420">
 </p>
 ---
 
@@ -361,9 +361,22 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 
 ## 📦 Version
 
-**v3.6.2**
+**v4.0.0**
 
 ---
+
+
+## v4.0.0 highlights
+
+- Nine coordinated interface themes (2 core themes + 7 additional themes).
+- Hybrid resource visualization with circular gauges and lightweight live graphs.
+- Dedicated System Health diagnostics page.
+- Settings and Telegram integration are separated.
+- Owner-only Telegram account security actions with Premium Custom Emoji support.
+- Connection Tester has a hard 10-second execution limit.
+- Find Target keeps its 30-second hard deadline and supports up to 10 certificate-backed SAN candidates.
+- Log storage is bounded to a single 15 MB rotating application log.
+- UI animations use lightweight CSS and resource polling pauses when the dashboard is not visible.
 
 ## 📄 License
 
@@ -372,7 +385,7 @@ MIT License — Copyright © 2026 **durwinam**
 </div>
 
 
-## v4.0.0
+## v3.0.1
 
 - Global Check Host page powered by the Check-Host API: Info, Ping, HTTP, TCP, UDP, and DNS.
 - Smart Connection now reports Download, Upload, Latency, and Jitter.
