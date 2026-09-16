@@ -38,6 +38,35 @@
         <option value="30">30 samples</option><option value="60">60 samples</option><option value="120">120 samples</option><option value="300">300 samples</option>
       </select>
       <label class="check-row custom-check-row" for="animationsEnabled"><span><strong>Interface animations</strong><small class="field-hint">Use lightweight CSS transitions and status pulses.</small></span><span class="custom-checkbox"><input id="animationsEnabled" type="checkbox"><span class="checkbox-box" aria-hidden="true">{% include 'icons/check.svg' %}</span></span></label>
+      <div class="settings-divider"></div>
+      <div class="security-setting" id="twoFactorSetting">
+        <div class="security-setting-head">
+          <div>
+            <label class="security-setting-title">Two-Factor Authentication</label>
+            <small class="field-hint">Protect panel login with a 6-digit TOTP code.</small>
+          </div>
+          <button type="button" class="security-toggle" id="twoFactorToggle" aria-pressed="false">
+            <span class="checkbox-box" aria-hidden="true">{% include 'icons/check.svg' %}</span><span id="twoFactorToggleLabel">OFF</span>
+          </button>
+        </div>
+        <div class="security-setting-status" id="twoFactorStatus">Checking 2FA status…</div>
+        <div class="security-2fa-panel" id="twoFactorSetup" hidden>
+          <div class="security-2fa-title">Set up your authenticator</div>
+          <p class="field-hint">Add this secret to an authenticator app, then enter the current 6-digit code to confirm.</p>
+          <div class="security-secret-row"><code id="twoFactorSecret">—</code><button type="button" class="secondary" id="copyTwoFactorSecret">Copy secret</button></div>
+          <label>Authenticator code<input id="twoFactorSetupCode" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="000000"></label>
+          <div class="settings-actions"><button type="button" class="primary" id="enableTwoFactor">Enable 2FA</button><button type="button" class="secondary" id="cancelTwoFactor">Cancel</button></div>
+          <div class="message" id="twoFactorSetupMessage"></div>
+        </div>
+        <div class="security-2fa-panel" id="twoFactorDisable" hidden>
+          <div class="security-2fa-title">Disable two-factor authentication</div>
+          <p class="field-hint">For security, confirm your current panel password and authenticator code.</p>
+          <label>Current password<input id="twoFactorDisablePassword" type="password" autocomplete="current-password"></label>
+          <label>Authenticator code<input id="twoFactorDisableCode" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="000000"></label>
+          <div class="settings-actions"><button type="button" class="danger" id="disableTwoFactor">Disable 2FA</button><button type="button" class="secondary" id="cancelTwoFactorDisable">Cancel</button></div>
+          <div class="message" id="twoFactorDisableMessage"></div>
+        </div>
+      </div>
       <button class="primary settings-submit" id="savePreferences">{% include 'icons/check.svg' %} Save preferences</button>
       <div id="preferencesMessage" class="message"></div>
     </div>
