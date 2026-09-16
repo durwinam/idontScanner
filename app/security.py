@@ -172,6 +172,16 @@ def clear_failed_login(ip: str) -> None:
         con.execute("DELETE FROM auth_attempts WHERE ip=?", (ip,))
 
 
+
+def record_security_event(event: str, ip: str = "unknown", detail: str = "") -> None:
+    """Persist a security audit event without ever storing credentials."""
+    from app.database import db
+    with db() as con:
+        con.execute(
+            "INSERT INTO security_events(event, ip, detail, created_at) VALUES (?, ?, ?, ?)",
+            (str(event)[:120], str(ip)[:255], str(detail)[:500], int(time.time())),
+        )
+
 def new_totp_secret() -> str:
     return base64.b32encode(secrets.token_bytes(20)).decode().rstrip("=")
 

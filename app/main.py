@@ -19,7 +19,7 @@ import urllib.request
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -70,7 +70,10 @@ from app.security import (
     record_failed_login,
     require_auth,
     remember_session,
+    record_security_event,
     server_ip,
+    new_totp_secret,
+    provisioning_uri,
     totp_enabled,
     verify_totp,
     valid_domain,
@@ -773,7 +776,7 @@ async def _best_effort_isp(ip: str):
         return None
     def fetch():
         try:
-            req=urllib.request.Request(f"https://ipwho.is/{ip}", headers={"User-Agent":"idontScanner/4.0.5"})
+            req=urllib.request.Request(f"https://ipwho.is/{ip}", headers={"User-Agent":"idontScanner/4.0.6"})
             with urllib.request.urlopen(req, timeout=1.5) as r:
                 data=json.loads(r.read(12000).decode("utf-8","replace"))
             conn=data.get("connection") or {}
@@ -1192,6 +1195,7 @@ async def telegram_page(request: Request):
             telegram_configured=bool(get_setting("telegram_token")),
             telegram_owner_id=telegram_owner_id(),
             telegram_admin_ids=", ".join(sorted(telegram_admin_ids())),
+            public_panel_url=get_setting("public_panel_url", ""),
         ),
     )
 
@@ -1204,6 +1208,16 @@ async def account_page(request: Request):
     return templates.TemplateResponse(
         "account.html",
         _page_context(request, active="account"),
+    )
+
+
+@app.get("/account/2fa/", response_class=HTMLResponse)
+async def account_2fa_page(request: Request):
+    if not require_auth(request):
+        return _redirect_to_login()
+    return templates.TemplateResponse(
+        "two_factor.html",
+        _page_context(request, active="account", two_factor_enabled=totp_enabled()),
     )
 
 
@@ -1416,7 +1430,12 @@ async def change_password(request: Request):
 
     set_setting("password", hash_password(new))
     request.session.clear()
-
+    record_security_event("Password changed", client_ip(request), "web panel")
+    try:
+        from app.telegram import security_alert
+        await security_alert(get_setting("telegram_token"), "Password changed", client_ip(request), "Web panel")
+    except Exception:
+        pass
     return {"ok": True, "redirect": "/login/"}
 
 
@@ -1431,7 +1450,99 @@ async def change_username(request: Request):
         return JSONResponse({"error": "invalid username"}, status_code=400)
 
     set_setting("username", username)
+    record_security_event("Username changed", client_ip(request), "web panel")
+    try:
+        from app.telegram import security_alert
+        await security_alert(get_setting("telegram_token"), "Username changed", client_ip(request), "Web panel")
+    except Exception:
+        pass
     return {"ok": True}
+
+
+@app.post("/api/account/2fa/setup")
+async def setup_two_factor(request: Request):
+    body, error = await _authorized_json(request)
+    if error:
+        return error
+    current = str(body.get("current", ""))
+    if not verify_password(current, get_setting("password")):
+        record_security_event("2FA setup rejected", client_ip(request), "invalid current password")
+        return JSONResponse({"error": "current password is incorrect"}, status_code=400)
+    if totp_enabled():
+        return JSONResponse({"error": "two-factor authentication is already enabled"}, status_code=400)
+    secret = new_totp_secret()
+    request.session["pending_totp_secret"] = secret
+    uri = provisioning_uri(get_setting("username", "admin"), secret)
+    return {"ok": True, "secret": secret, "uri": uri}
+
+
+@app.get("/api/account/2fa/qr")
+async def two_factor_qr(request: Request):
+    if not require_auth(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    secret = str(request.session.get("pending_totp_secret", ""))
+    if not secret:
+        return JSONResponse({"error": "no pending 2FA setup"}, status_code=404)
+    uri = provisioning_uri(get_setting("username", "admin"), secret)
+    try:
+        import qrcode
+        from qrcode.image.svg import SvgPathImage
+        image = qrcode.make(uri, image_factory=SvgPathImage)
+        return Response(content=image.to_string().decode("utf-8"), media_type="image/svg+xml", headers={"Cache-Control": "no-store"})
+    except Exception as exc:
+        logger.exception("Unable to generate 2FA QR code")
+        return JSONResponse({"error": f"Unable to generate QR code: {exc}"}, status_code=500)
+
+
+@app.post("/api/account/2fa/confirm")
+async def confirm_two_factor(request: Request):
+    body, error = await _authorized_json(request)
+    if error:
+        return error
+    secret = str(request.session.get("pending_totp_secret", ""))
+    code = str(body.get("code", ""))
+    if not secret:
+        return JSONResponse({"error": "no pending 2FA setup"}, status_code=400)
+    if not verify_totp(secret, code):
+        record_security_event("2FA setup failed", client_ip(request), "invalid TOTP code")
+        return JSONResponse({"error": "invalid authentication code"}, status_code=400)
+    set_setting("totp_secret", secret)
+    set_setting("totp_enabled", "1")
+    request.session.pop("pending_totp_secret", None)
+    record_security_event("2FA enabled", client_ip(request), "web panel")
+    try:
+        from app.telegram import security_alert
+        await security_alert(get_setting("telegram_token"), "2FA enabled", client_ip(request), "Web panel")
+    except Exception:
+        pass
+    return {"ok": True}
+
+
+@app.post("/api/account/2fa/disable")
+async def disable_two_factor(request: Request):
+    body, error = await _authorized_json(request)
+    if error:
+        return error
+    if not totp_enabled():
+        return {"ok": True, "enabled": False}
+    current = str(body.get("current", ""))
+    code = str(body.get("code", ""))
+    if not verify_password(current, get_setting("password")):
+        record_security_event("2FA disable rejected", client_ip(request), "invalid current password")
+        return JSONResponse({"error": "current password is incorrect"}, status_code=400)
+    if not verify_totp(get_setting("totp_secret", ""), code):
+        record_security_event("2FA disable failed", client_ip(request), "invalid TOTP code")
+        return JSONResponse({"error": "invalid authentication code"}, status_code=400)
+    set_setting("totp_enabled", "0")
+    set_setting("totp_secret", "")
+    request.session.pop("pending_totp_secret", None)
+    record_security_event("2FA disabled", client_ip(request), "web panel")
+    try:
+        from app.telegram import security_alert
+        await security_alert(get_setting("telegram_token"), "2FA disabled", client_ip(request), "Web panel")
+    except Exception:
+        pass
+    return {"ok": True, "enabled": False}
 
 
 @app.get("/api/preferences")
@@ -1527,6 +1638,7 @@ async def telegram_status(request: Request):
                 "authorized": bool(owner_id or admin_ids),
                 "owner_id": owner_id,
                 "admin_ids": admin_ids,
+                "public_panel_url": get_setting("public_panel_url", ""),
             }
 
         bot = result.get("result", {})
@@ -1539,6 +1651,7 @@ async def telegram_status(request: Request):
             "username": username,
             "name": bot.get("first_name", ""),
             "url": f"https://t.me/{username}" if username else "",
+            "public_panel_url": get_setting("public_panel_url", ""),
         }
     except Exception:
         return {
@@ -1578,6 +1691,9 @@ async def telegram_settings(request: Request):
     token = str(body.get("token", "")).strip()
     owner_id = str(body.get("owner_id", "")).strip()
     admin_ids_raw = str(body.get("admin_ids", "")).strip()
+    public_panel_url = str(body.get("public_panel_url", "")).strip().rstrip("/")
+    if public_panel_url and not (public_panel_url.startswith("https://") or public_panel_url.startswith("http://")):
+        return JSONResponse({"error": "Public panel URL must start with http:// or https://."}, status_code=400)
     admin_ids = [
         item.strip()
         for item in admin_ids_raw.replace("\n", ",").split(",")
@@ -1646,6 +1762,7 @@ async def telegram_settings(request: Request):
         set_setting("telegram_owner_id", owner_id)
         set_setting("telegram_admin_ids", ",".join(admin_ids))
         set_setting("telegram_chat_id", owner_id)
+        set_setting("public_panel_url", public_panel_url)
 
         return {
             "ok": True,
@@ -1656,6 +1773,7 @@ async def telegram_settings(request: Request):
             "authorized": bool(owner_id or admin_ids),
             "owner_id": owner_id,
             "admin_ids": admin_ids,
+            "public_panel_url": public_panel_url,
         }
 
     for key in (
@@ -1663,6 +1781,7 @@ async def telegram_settings(request: Request):
         "telegram_chat_id",
         "telegram_owner_id",
         "telegram_admin_ids",
+        "public_panel_url",
     ):
         set_setting(key, "")
 

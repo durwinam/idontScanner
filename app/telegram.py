@@ -114,6 +114,11 @@ BUTTON_STYLES = {
     "security_password": "primary",
     "security_reset": "danger",
     "security_logout": "danger",
+    "security_2fa": "primary",
+    "security_2fa_enable": "success",
+    "security_2fa_disable": "danger",
+    "security_2fa_back": "primary",
+    "security_2fa_web": "primary",
 }
 
 BUTTON_ICONS = {
@@ -141,8 +146,9 @@ BUTTON_ICONS = {
     "security_password": "🔐",
     "security_reset": "🔄",
     "security_logout": "🚪",
-    "security_2fa_enable": "🛡️",
-    "security_2fa_disable": "🛡️",
+    "security_2fa": "🔒",
+    "security_2fa_enable": "🔒",
+    "security_2fa_disable": "🔒",
 }
 
 
@@ -227,6 +233,9 @@ def button(text: str, callback_data: str, premium: bool = True) -> dict:
         label = f"{icon} {text}"
 
     payload = {"text": label, "callback_data": callback_data}
+    style = BUTTON_STYLES.get(callback_data)
+    if style:
+        payload["style"] = style
     emoji_id = PREMIUM_EMOJIS.get(icon) if premium else None
     if emoji_id:
         payload["icon_custom_emoji_id"] = emoji_id
@@ -249,18 +258,41 @@ def main_keyboard(premium: bool = True) -> dict:
 
 def security_keyboard(premium: bool = True) -> dict:
     """Account Security actions using stable Telegram Bot API buttons."""
-    two_fa_label = "Disable 2FA" if totp_enabled() else "Enable 2FA"
-    two_fa_action = "security_2fa_disable" if totp_enabled() else "security_2fa_enable"
     return {
         "inline_keyboard": [
             [button("Change Username", "security_username", premium)],
             [button("Change Password", "security_password", premium)],
             [button("Reset Password", "security_reset", premium)],
-            [button(two_fa_label, two_fa_action, premium)],
+            [button("Two-Factor Authentication", "security_2fa", premium)],
             [button("Logout All Sessions", "security_logout", premium)],
             [button("Back to Menu", "menu", premium)],
         ]
     }
+
+
+def two_factor_keyboard(premium: bool = True) -> dict:
+    enabled = totp_enabled()
+    action = "security_2fa_disable" if enabled else "security_2fa_enable"
+    label = "Disable 2FA" if enabled else "Enable 2FA"
+    return {
+        "inline_keyboard": [
+            [button(label, action, premium)],
+            [button("Open Web Panel 2FA", "security_2fa_web", premium)],
+            [button("Back to Account Security", "security", premium)],
+            [button("Back to Menu", "menu", premium)],
+        ]
+    }
+
+
+def two_factor_text() -> str:
+    status = "Enabled" if totp_enabled() else "Disabled"
+    return (
+        f"<b>{ui_emoji('🛡️', True)} Two-Factor Authentication</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"Status: <b>{status}</b>\n\n"
+        "Protect the web panel with a 6-digit TOTP code from an authenticator app.\n"
+        "You can enable or disable it from this menu or manage it in the web panel."
+    )
 
 
 def security_text() -> str:
@@ -574,6 +606,16 @@ async def security_message_async(
     })
 
 
+async def delete_message_async(token: str, chat_id: int, message_id: int | None):
+    if not message_id:
+        return
+    try:
+        await telegram_request_async(token, "deleteMessage", {"chat_id": chat_id, "message_id": message_id})
+    except Exception:
+        # Telegram may reject deletion depending on chat/client state; never block security flows.
+        pass
+
+
 async def callback_response_async(token: str, callback_id: str):
     return await asyncio.to_thread(callback_response, token, callback_id)
 
@@ -638,6 +680,10 @@ async def _handle_callback_safe(token: str, callback: dict):
         await handle_callback(token, callback)
     except Exception as exc:
         logger.exception("Telegram callback failed: action=%s", callback.get("data"))
+        try:
+            await callback_response_async(token, callback.get("id"))
+        except Exception:
+            pass
         message = callback.get("message") or {}
         chat = message.get("chat") or {}
         chat_id = chat.get("id")
@@ -679,6 +725,24 @@ async def handle_callback(token: str, callback: dict):
             await security_message_async(token, chat_id, message_id, "<b>Owner access required.</b>", _back_keyboard(premium))
             return
         await security_message_async(token, chat_id, message_id, security_text(), security_keyboard(premium))
+        return
+
+    if action == "security_2fa":
+        if str(chat_id) != telegram_owner_id():
+            await security_message_async(token, chat_id, message_id, "<b>Owner access required.</b>", _back_keyboard(premium))
+            return
+        await security_message_async(token, chat_id, message_id, two_factor_text(), two_factor_keyboard(premium))
+        return
+
+    if action == "security_2fa_web":
+        if str(chat_id) != telegram_owner_id():
+            return
+        public_url = get_setting("public_panel_url", "").strip().rstrip("/")
+        if public_url:
+            markup = {"inline_keyboard": [[{"text": "Open Web Panel 2FA", "url": public_url + "/account/2fa/"}], [button("Back", "security_2fa", premium)]]}
+            await security_message_async(token, chat_id, message_id, "<b>Web Panel · Two-Factor Authentication</b>\n\nOpen the dedicated 2FA section:", markup)
+        else:
+            await security_message_async(token, chat_id, message_id, "<b>Web Panel · Two-Factor Authentication</b>\n\nSet <code>IDONTSCANNER_PUBLIC_URL</code> or the <code>public_panel_url</code> setting first so Telegram can generate a secure web-panel link.", two_factor_keyboard(premium))
         return
 
     if action == "security_username":
@@ -834,11 +898,13 @@ async def handle_text_message(token: str, message: dict):
     user = message.get("from") or {}
     chat_id = chat.get("id")
     text = (message.get("text") or "").strip()
+    message_id = message.get("message_id")
     if not chat_id or chat.get("type") != "private" or not telegram_allowed_chat(chat_id):
         return
 
     security_step = _PENDING_SECURITY.get(chat_id)
     if security_step and str(chat_id) == telegram_owner_id() and text and not text.startswith("/"):
+        await delete_message_async(token, chat_id, message_id)
         if security_step == "username":
             if not 3 <= len(text) <= 32:
                 await telegram_send_async("Username must be between 3 and 32 characters.", _back_keyboard(is_premium_user(user)), chat_id)
