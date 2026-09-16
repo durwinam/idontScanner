@@ -55,8 +55,18 @@
     translateTextNodes();
   }
   document.querySelector("#langToggle")?.addEventListener("click",()=>{lang=lang==="fa"?"en":"fa";localStorage.setItem("idont_lang",lang);apply();window.dispatchEvent(new Event("idont-language-changed"));});
-  document.querySelector("#themeToggle")?.addEventListener("click",()=>{const next=document.documentElement.dataset.theme==="light"?"dark":"light";document.documentElement.dataset.theme=next;localStorage.setItem("idont_theme",next);});
-  document.documentElement.dataset.theme=localStorage.getItem("idont_theme")||"dark"; apply();
+  document.querySelector("#themeToggle")?.addEventListener("click", async ()=>{
+    const current=document.documentElement.dataset.theme||"dark";
+    const next=current==="light"?"dark":"light";
+    document.documentElement.dataset.theme=next;
+    try {
+      const response=await fetch(`${window.IDONT?.base||""}/api/preferences`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({csrf:window.IDONT?.csrf||"",theme:next,resource_chart_style:window.IDONT?.resourceChartStyle||"hybrid",resource_range:Number(window.IDONT?.resourceRange||60),animations:document.documentElement.dataset.animations!=="0"})});
+      if(!response.ok) throw new Error("preference save failed");
+      localStorage.setItem("idont_theme", next);
+      window.dispatchEvent(new CustomEvent("idont-preferences-changed", {detail:{theme:next}}));
+    } catch { /* visual toggle still works if persistence is unavailable */ }
+  });
+  apply();
 
   let translationBusy=false;
   const translationObserver=new MutationObserver(mutations=>{

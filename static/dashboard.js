@@ -1,6 +1,6 @@
 const resourceState = {
     history: { cpu: [], memory: [], disk: [] },
-    maxPoints: 720,
+    maxPoints: Number(window.ID?.resourceRange || 60),
 };
 
 function setText(id, value) {
@@ -83,6 +83,11 @@ function pushHistory(name, value) {
     updateChart(`${name}Chart`, values);
 }
 
+function applyChartStyle() {
+    const style = localStorage.getItem("idont_resource_chart_style") || window.ID?.resourceChartStyle || "hybrid";
+    document.querySelectorAll(".resource-card").forEach((card) => card.dataset.chartStyle = style);
+}
+
 function renderResources(data) {
     setGauge("cpuGauge", "cpuProgress", data.cpu.percent);
     setText("cpuPercent", `${Math.round(data.cpu.percent)}%`);
@@ -142,15 +147,33 @@ async function refreshResources() {
 
 const range = document.getElementById("resourceRange");
 range?.addEventListener("change", () => {
-    resourceState.maxPoints = Number(range.value) || 60;
+    resourceState.maxPoints = Number(range.value) || Number(localStorage.getItem("idont_resource_range")) || 60;
     Object.keys(resourceState.history).forEach((key) => {
         resourceState.history[key] = resourceState.history[key].slice(-resourceState.maxPoints);
         updateChart(`${key}Chart`, resourceState.history[key]);
     });
 });
 
+applyChartStyle();
+window.addEventListener("idont-preferences-changed", (event) => {
+    const detail = event.detail || {};
+    if (detail.resource_chart_style) {
+        window.ID.resourceChartStyle = detail.resource_chart_style;
+        applyChartStyle();
+    }
+    if (detail.resource_range) {
+        resourceState.maxPoints = Number(detail.resource_range) || 60;
+        Object.keys(resourceState.history).forEach((key) => {
+            resourceState.history[key] = resourceState.history[key].slice(-resourceState.maxPoints);
+            updateChart(`${key}Chart`, resourceState.history[key]);
+        });
+    }
+});
 refreshResources();
-window.setInterval(refreshResources, 5000);
+// Poll only while the dashboard is visible; this keeps idle tabs inexpensive.
+window.setInterval(() => {
+    if (document.visibilityState === "visible") refreshResources();
+}, 5000);
 
 async function runQuickScan() {
     const state = document.querySelector("#dashState");

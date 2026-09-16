@@ -104,8 +104,10 @@ async function loadTelegramStatus() {
 
         setTelegramStatus(`${botName} connected · ${accessState}`, true);
 
-        document.querySelector("#telegramOwnerId").value = data.owner_id || "";
-        document.querySelector("#telegramAdminIds").value = (data.admin_ids || []).join(", ");
+        const ownerInput = document.querySelector("#telegramOwnerId");
+        const adminsInput = document.querySelector("#telegramAdminIds");
+        if (ownerInput) ownerInput.value = data.owner_id || "";
+        if (adminsInput) adminsInput.value = (data.admin_ids || []).join(", ");
         setTelegramLink(data.url);
     } catch {
         setTelegramStatus("Unable to check Telegram connection.");
@@ -192,3 +194,93 @@ document.querySelector("#disableTelegram")?.addEventListener("click", async () =
 });
 
 loadTelegramStatus();
+
+
+async function loadPreferences() {
+    const chart = document.querySelector("#resourceChartStyle");
+    const range = document.querySelector("#resourceRange");
+    const animations = document.querySelector("#animationsEnabled");
+    if (!chart && !range && !animations) return;
+    try {
+        const response = await fetch(`${ID.base}/api/preferences`, { cache: "no-store" });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Unable to load preferences.");
+        if (chart) chart.value = data.resource_chart_style;
+        if (range) range.value = String(data.resource_range);
+        if (animations) animations.checked = Boolean(data.animations);
+        document.documentElement.dataset.theme = data.theme || "dark";
+        localStorage.setItem("idont_theme", data.theme || "dark");
+        document.querySelectorAll("[data-theme-choice]").forEach((button) => {
+            button.classList.toggle("selected", button.dataset.themeChoice === data.theme);
+        });
+    } catch (error) {
+        showMessage(document.querySelector("#preferencesMessage"), error.message, "error");
+    }
+}
+
+async function savePreferences() {
+    const chart = document.querySelector("#resourceChartStyle");
+    const range = document.querySelector("#resourceRange");
+    const animations = document.querySelector("#animationsEnabled");
+    const theme = document.documentElement.dataset.theme || "dark";
+    const body = {
+        csrf: ID.csrf, theme,
+        resource_chart_style: chart?.value || "hybrid",
+        resource_range: Number(range?.value || 60),
+        animations: Boolean(animations?.checked),
+    };
+    const message = document.querySelector("#preferencesMessage");
+    showMessage(message, "Saving preferences…");
+    try {
+        const response = await fetch(`${ID.base}/api/preferences`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Unable to save preferences.");
+        document.documentElement.dataset.animations = data.animations ? "1" : "0";
+        localStorage.setItem("idont_theme", data.theme);
+        localStorage.setItem("idont_resource_chart_style", data.resource_chart_style);
+        localStorage.setItem("idont_resource_range", String(data.resource_range));
+        window.dispatchEvent(new CustomEvent("idont-preferences-changed", { detail: data }));
+        showMessage(message, "Preferences saved.");
+    } catch (error) { showMessage(message, error.message, "error"); }
+}
+
+document.querySelectorAll("[data-theme-choice]").forEach((button) => {
+    button.addEventListener("click", () => {
+        const theme = button.dataset.themeChoice;
+        document.documentElement.dataset.theme = theme;
+        document.querySelectorAll("[data-theme-choice]").forEach((item) => item.classList.toggle("selected", item === button));
+    });
+});
+document.querySelector("#savePreferences")?.addEventListener("click", savePreferences);
+loadPreferences();
+
+
+async function testTelegramConnection() {
+    const button = document.querySelector("#testTelegram");
+    if (!button) return;
+    button.disabled = true;
+    button.classList.add("is-loading");
+    showMessage(telegramMessage, "Testing Telegram bot connection…");
+    try {
+        const response = await fetch(`${ID.base}/api/telegram/test`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ csrf: ID.csrf }),
+            cache: "no-store",
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Telegram connection test failed.");
+        const label = data.username ? `@${data.username}` : (data.name || "bot");
+        setTelegramStatus(`${label} connected · Telegram API OK`, true);
+        showMessage(telegramMessage, `Bot connection successful: ${label}.`);
+        setTelegramLink(data.url || "");
+    } catch (error) {
+        setTelegramStatus("Telegram connection test failed.", false);
+        showMessage(telegramMessage, error.message, "error");
+    } finally {
+        button.disabled = false;
+        button.classList.remove("is-loading");
+    }
+}
+
+document.querySelector("#testTelegram")?.addEventListener("click", testTelegramConnection);
