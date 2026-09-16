@@ -17,7 +17,7 @@ speedStart?.addEventListener("click", async () => {
         setStage("Finalizing results…", 92); await new Promise(r => setTimeout(r, 400));
         document.querySelector("#speedDownload").textContent=data.download_mbps; document.querySelector("#speedUpload").textContent=data.upload_mbps; document.querySelector("#speedLatency").textContent=data.latency_ms; document.querySelector("#speedJitter").textContent=data.jitter_ms;
         document.querySelector("#speedProvider").textContent=data.provider; document.querySelector("#speedSamples").textContent=data.samples; document.querySelector("#speedDuration").textContent=`${data.duration_ms} ms`;
-        speedResults.classList.remove("hidden"); setStage("Test complete ✓", 100);
+        speedResults.classList.remove("hidden"); setStage("Test complete.", 100);
     } catch (error) { setStage(error.message, 0); }
     finally { speedShell.classList.remove("testing"); speedStart.disabled=false; }
 });

@@ -284,3 +284,150 @@ async function testTelegramConnection() {
 }
 
 document.querySelector("#testTelegram")?.addEventListener("click", testTelegramConnection);
+
+// Two-factor authentication — shared with the Telegram Account Security flow.
+const twoFactorToggle = document.querySelector("#twoFactorToggle");
+const twoFactorToggleLabel = document.querySelector("#twoFactorToggleLabel");
+const twoFactorStatus = document.querySelector("#twoFactorStatus");
+const twoFactorSetup = document.querySelector("#twoFactorSetup");
+const twoFactorDisable = document.querySelector("#twoFactorDisable");
+const twoFactorSecret = document.querySelector("#twoFactorSecret");
+const twoFactorSetupCode = document.querySelector("#twoFactorSetupCode");
+const twoFactorSetupMessage = document.querySelector("#twoFactorSetupMessage");
+const twoFactorDisableMessage = document.querySelector("#twoFactorDisableMessage");
+let twoFactorEnabled = false;
+
+function setTwoFactorState(enabled) {
+    twoFactorEnabled = Boolean(enabled);
+    if (twoFactorToggle) {
+        twoFactorToggle.classList.toggle("is-on", twoFactorEnabled);
+        twoFactorToggle.setAttribute("aria-pressed", twoFactorEnabled ? "true" : "false");
+    }
+    if (twoFactorToggleLabel) twoFactorToggleLabel.textContent = twoFactorEnabled ? "ON" : "OFF";
+    if (twoFactorStatus) {
+        twoFactorStatus.textContent = twoFactorEnabled
+            ? "2FA is enabled for panel login."
+            : "2FA is currently disabled.";
+    }
+}
+
+async function loadTwoFactorStatus() {
+    if (!twoFactorToggle) return;
+    try {
+        const response = await fetch(`${ID.base}/api/security/2fa`, { cache: "no-store" });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Unable to load 2FA status.");
+        setTwoFactorState(data.enabled);
+    } catch (error) {
+        if (twoFactorStatus) twoFactorStatus.textContent = error.message;
+    }
+}
+
+function closeTwoFactorPanels() {
+    if (twoFactorSetup) twoFactorSetup.hidden = true;
+    if (twoFactorDisable) twoFactorDisable.hidden = true;
+}
+
+async function startTwoFactorSetup() {
+    closeTwoFactorPanels();
+    showMessage(twoFactorSetupMessage, "Preparing secure 2FA setup…");
+    twoFactorSetup.hidden = false;
+    try {
+        const response = await fetch(`${ID.base}/api/security/2fa/setup`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ csrf: ID.csrf }),
+            cache: "no-store",
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Unable to start 2FA setup.");
+        twoFactorSecret.textContent = data.secret;
+        twoFactorSetupCode.value = "";
+        showMessage(twoFactorSetupMessage, "Add the secret to your authenticator app, then enter its current 6-digit code.");
+        twoFactorSetupCode.focus();
+    } catch (error) {
+        showMessage(twoFactorSetupMessage, error.message, "error");
+    }
+}
+
+twoFactorToggle?.addEventListener("click", () => {
+    if (twoFactorEnabled) {
+        closeTwoFactorPanels();
+        twoFactorDisable.hidden = false;
+        document.querySelector("#twoFactorDisablePassword")?.focus();
+    } else {
+        startTwoFactorSetup();
+    }
+});
+
+document.querySelector("#enableTwoFactor")?.addEventListener("click", async () => {
+    const code = (twoFactorSetupCode?.value || "").replace(/\D/g, "").slice(0, 6);
+    if (code.length !== 6) {
+        showMessage(twoFactorSetupMessage, "Enter a valid 6-digit authenticator code.", "error");
+        return;
+    }
+    showMessage(twoFactorSetupMessage, "Enabling 2FA…");
+    try {
+        const response = await fetch(`${ID.base}/api/security/2fa/enable`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ csrf: ID.csrf, code }),
+            cache: "no-store",
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Unable to enable 2FA.");
+        setTwoFactorState(true);
+        closeTwoFactorPanels();
+        showMessage(document.querySelector("#preferencesMessage"), "Two-factor authentication enabled.");
+    } catch (error) {
+        showMessage(twoFactorSetupMessage, error.message, "error");
+    }
+});
+
+document.querySelector("#disableTwoFactor")?.addEventListener("click", async () => {
+    const password = document.querySelector("#twoFactorDisablePassword")?.value || "";
+    const code = (document.querySelector("#twoFactorDisableCode")?.value || "").replace(/\D/g, "").slice(0, 6);
+    if (!password || code.length !== 6) {
+        showMessage(twoFactorDisableMessage, "Enter your current password and 6-digit authenticator code.", "error");
+        return;
+    }
+    showMessage(twoFactorDisableMessage, "Disabling 2FA…");
+    try {
+        const response = await fetch(`${ID.base}/api/security/2fa/disable`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ csrf: ID.csrf, password, code }),
+            cache: "no-store",
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Unable to disable 2FA.");
+        setTwoFactorState(false);
+        closeTwoFactorPanels();
+        document.querySelector("#twoFactorDisablePassword").value = "";
+        document.querySelector("#twoFactorDisableCode").value = "";
+        showMessage(document.querySelector("#preferencesMessage"), "Two-factor authentication disabled.");
+    } catch (error) {
+        showMessage(twoFactorDisableMessage, error.message, "error");
+    }
+});
+
+document.querySelector("#cancelTwoFactor")?.addEventListener("click", closeTwoFactorPanels);
+document.querySelector("#cancelTwoFactorDisable")?.addEventListener("click", closeTwoFactorPanels);
+document.querySelector("#copyTwoFactorSecret")?.addEventListener("click", async () => {
+    const secret = twoFactorSecret?.textContent?.trim();
+    if (!secret || secret === "—") return;
+    try {
+        await navigator.clipboard.writeText(secret);
+        showMessage(twoFactorSetupMessage, "Secret copied to clipboard.");
+    } catch {
+        showMessage(twoFactorSetupMessage, "Copy is unavailable. Copy the secret manually.", "error");
+    }
+});
+
+twoFactorSetupCode?.addEventListener("input", () => {
+    twoFactorSetupCode.value = twoFactorSetupCode.value.replace(/\D/g, "").slice(0, 6);
+});
+document.querySelector("#twoFactorDisableCode")?.addEventListener("input", (event) => {
+    event.target.value = event.target.value.replace(/\D/g, "").slice(0, 6);
+});
+loadTwoFactorStatus();
