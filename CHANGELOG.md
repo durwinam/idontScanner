@@ -1,6 +1,13 @@
+## v4.0.4
+
+- Fixed duplicate select controls on Settings and dashboard pages.
+- Centralized native `<select>` enhancement in `static/app.js` to prevent conflicting UI wrappers.
+- Preserved custom Find Target selectors and existing selection/change behavior.
+- Improved mobile selector rendering and removed the duplicate browser-style control shown under the custom selector.
+
 # Changelog
 
-## v4.0.3
+## v4.0.4
 
 - Fixed Telegram Account Security navigation and callback handling.
 - Added native Telegram button colors and Premium custom-emoji icons.
@@ -8,14 +15,14 @@
 - Improved Telegram callback error isolation so one failed callback cannot stop other bot interactions.
 - Preserved legacy `telegram_chat_id` as an owner fallback for existing installations.
 
-# v4.0.3
+# v4.0.4
 
 - Fixed the mobile boot loading screen animations.
 - Boot orbit, logo pulse, and progress bar now animate reliably even when interface animations are disabled.
 - Progress bar now visibly fills during startup.
 - Increased the mobile boot screen minimum display time for smoother rendering.
 - Fixed `update.sh` catalog validation so the Python `tools` package is resolved correctly.
-- Bumped installer/runtime identifiers to v4.0.3.
+- Bumped installer/runtime identifiers to v4.0.4.
 - Reworked Telegram inline keyboards to use stable Bot API fields, removing slow compatibility fallbacks.
 - Fixed Account Security navigation and added Change Username, Change Password, Reset Password, Logout All Sessions, and Enable/Disable 2FA.
 - Added TOTP-based 2FA verification for web panel login.
