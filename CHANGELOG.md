@@ -1,33 +1,14 @@
-## v4.0.4
+# v4.0.5
 
-- Fixed duplicate select controls on Settings and dashboard pages.
-- Centralized native `<select>` enhancement in `static/app.js` to prevent conflicting UI wrappers.
-- Preserved custom Find Target selectors and existing selection/change behavior.
-- Improved mobile selector rendering and removed the duplicate browser-style control shown under the custom selector.
+Maintenance and security release based on v4.0.2.
 
-# Changelog
-
-## v4.0.4
-
-- Fixed Telegram Account Security navigation and callback handling.
-- Added native Telegram button colors and Premium custom-emoji icons.
-- Added a legacy fallback for clients/bots that cannot use native button styling.
-- Improved Telegram callback error isolation so one failed callback cannot stop other bot interactions.
-- Preserved legacy `telegram_chat_id` as an owner fallback for existing installations.
-
-# v4.0.4
-
-- Fixed the mobile boot loading screen animations.
-- Boot orbit, logo pulse, and progress bar now animate reliably even when interface animations are disabled.
-- Progress bar now visibly fills during startup.
-- Increased the mobile boot screen minimum display time for smoother rendering.
-- Fixed `update.sh` catalog validation so the Python `tools` package is resolved correctly.
-- Bumped installer/runtime identifiers to v4.0.4.
-- Reworked Telegram inline keyboards to use stable Bot API fields, removing slow compatibility fallbacks.
-- Fixed Account Security navigation and added Change Username, Change Password, Reset Password, Logout All Sessions, and Enable/Disable 2FA.
-- Added TOTP-based 2FA verification for web panel login.
-- Added per-IP login throttling: 3 failures → 5 minutes, 4 failures → 20 minutes, 5 failures → permanent IP block.
-- Added Telegram security alerts for successful/failed logins and sensitive security actions without exposing passwords or OTP secrets.
+- Fixed Telegram Account Security callbacks so Change Username, Change Password, Reset Password, and 2FA actions execute reliably.
+- Added callback error handling and a message-send fallback when Telegram message editing fails.
+- Added Telegram Premium custom emoji button icons with compatibility fallback for older clients.
+- Added explicit Reset Password confirmation before invalidating sessions.
+- Preserved TOTP 2FA, per-IP login rate limiting, and security alerts.
+- Fixed duplicate `/start` dashboard delivery.
+- Preserved all existing v4.0.5 application functionality and version identifiers.
 
 # v4.0.1
 
