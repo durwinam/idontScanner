@@ -79,22 +79,5 @@
   });
   if(document.body) translationObserver.observe(document.body,{childList:true,subtree:true});
 
-  function enhanceSelect(select){
-    if(select.dataset.enhanced || select.closest(".custom-select")) return;
-    select.dataset.enhanced="1";
-    const wrap=document.createElement("div"); wrap.className="custom-select native-select";
-    const trigger=document.createElement("button"); trigger.type="button"; trigger.className="select-trigger"; trigger.setAttribute("aria-haspopup","listbox"); trigger.setAttribute("aria-expanded","false");
-    const label=document.createElement("span"); const arrow=document.createElement("b"); arrow.textContent="⌄"; trigger.append(label,arrow);
-    const menu=document.createElement("div"); menu.className="select-menu"; menu.setAttribute("role","listbox");
-    [...select.options].forEach((opt,i)=>{const b=document.createElement("button"); b.type="button"; b.setAttribute("role","option"); b.dataset.value=opt.value; b.textContent=opt.textContent; if(i===select.selectedIndex)b.classList.add("selected"); b.onclick=()=>{select.value=opt.value;select.dispatchEvent(new Event("change",{bubbles:true}));sync();close();};menu.appendChild(b);});
-    const parent=select.parentElement; parent.insertBefore(wrap,select); wrap.append(trigger); document.body.appendChild(menu); select.classList.add("native-select-source"); wrap.appendChild(select);
-    function position(){const r=trigger.getBoundingClientRect(); const width=Math.max(r.width,160); const left=Math.min(Math.max(8,r.left),window.innerWidth-width-8); const top=r.bottom+6; menu.style.left=`${left}px`; menu.style.top=`${top}px`; menu.style.width=`${width}px`;}
-    function sync(){label.textContent=select.options[select.selectedIndex]?.textContent||"";menu.querySelectorAll("button").forEach(b=>b.classList.toggle("selected",b.dataset.value===select.value));}
-    function close(){wrap.classList.remove("open");trigger.setAttribute("aria-expanded","false");menu.classList.remove("portal-open");}
-    trigger.onclick=(e)=>{e.stopPropagation();document.querySelectorAll(".custom-select.open").forEach(x=>x!==wrap&&x.classList.remove("open"));const open=!wrap.classList.contains("open");wrap.classList.toggle("open",open);trigger.setAttribute("aria-expanded",String(open));if(open){position();menu.classList.add("portal-open");}};
-    select.addEventListener("change",sync); sync(); window.addEventListener("resize",()=>{if(wrap.classList.contains("open"))position();}); window.addEventListener("scroll",()=>{if(wrap.classList.contains("open"))position();},{passive:true});
-  }
-  function enhance(){document.querySelectorAll("select:not(.native-select-source)").forEach(enhanceSelect);translateTextNodes();}
-  document.addEventListener("click",()=>document.querySelectorAll(".custom-select.open").forEach(x=>x.classList.remove("open")));
-  window.addEventListener("DOMContentLoaded",enhance); window.addEventListener("idont-language-changed",()=>{enhance();document.querySelectorAll(".select-menu button").forEach(b=>{const k=b.dataset.i18n;if(k)b.textContent=T(k,b.textContent);});}); setTimeout(enhance,0);
+  // Select controls are enhanced centrally by static/app.js to avoid duplicate UI wrappers.
 })();
