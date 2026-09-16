@@ -39,6 +39,15 @@
       </div>
 
       <div class="settings-field-group">
+        <label for="publicPanelUrl">Public panel URL</label>
+        <div class="input-shell">
+          <span class="input-icon">{% include 'icons/globe.svg' %}</span>
+          <input id="publicPanelUrl" type="url" placeholder="https://panel.example.com" value="{{ public_panel_url }}" autocomplete="url" spellcheck="false">
+        </div>
+        <small class="field-hint">Used only for the Telegram Account Security → Two-Factor Authentication web-panel shortcut.</small>
+      </div>
+
+      <div class="settings-field-group">
         <label for="telegramAdminIds">Admin Telegram IDs</label>
         <div class="input-shell">
           <span class="input-icon">{% include 'icons/devices.svg' %}</span>

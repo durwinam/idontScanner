@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}Two-Factor Authentication — idontScanner{% endblock %}
+{% block crumb %}Two-Factor Authentication{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <span class="eyebrow">ACCOUNT SECURITY</span>
+    <h1>Two-Factor Authentication</h1>
+    <p>Add a TOTP authenticator code to protect web-panel login.</p>
+  </div>
+</section>
+
+<div class="two-col">
+  <section class="panel glass">
+    <div class="panel-head"><div><h2>Authenticator</h2><span class="muted">Use Aegis, Google Authenticator, 1Password or another TOTP app.</span></div><span id="twoFactorStatus" class="badge {% if two_factor_enabled %}good{% endif %}">{% if two_factor_enabled %}ENABLED{% else %}DISABLED{% endif %}</span></div>
+    <div class="settings-body">
+      {% if two_factor_enabled %}
+      <p class="muted">Two-factor authentication is currently enabled. Disabling it requires both the current panel password and a valid authenticator code.</p>
+      <label>Current password<input id="disable2faPassword" type="password" autocomplete="current-password"></label>
+      <label>Authenticator code<input id="disable2faCode" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" autocomplete="one-time-code"></label>
+      <button class="secondary" id="disable2fa">Disable 2FA</button>
+      {% else %}
+      <p class="muted">Enable 2FA and confirm one current code before it becomes active.</p>
+      <label>Current password<input id="setup2faPassword" type="password" autocomplete="current-password"></label>
+      <button class="primary" id="setup2fa">Generate authenticator setup</button>
+      <div id="twoFactorSetup" class="hidden">
+        <div class="two-factor-qr-wrap"><img id="twoFactorQr" alt="TOTP setup QR code" hidden></div>
+        <div class="security-secret"><span class="muted">Secret key</span><code id="twoFactorSecret"></code><button type="button" class="secondary" id="copy2faSecret">Copy</button></div>
+        <label>Verification code<input id="setup2faCode" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" autocomplete="one-time-code"></label>
+        <button class="primary" id="confirm2fa">Enable 2FA</button>
+      </div>
+      {% endif %}
+      <div id="twoFactorMessage" class="message"></div>
+      <a class="secondary" href="{{ base }}/account/">Back to Account</a>
+    </div>
+  </section>
+
+  <section class="panel glass">
+    <div class="panel-head"><div><h2>How it works</h2><span class="muted">The authenticator code changes every 30 seconds.</span></div></div>
+    <div class="settings-body">
+      <ol class="security-steps"><li>Generate a setup secret with your current password.</li><li>Add the secret to your authenticator app.</li><li>Enter the current 6-digit code.</li><li>Future web-panel logins require the authenticator code after the password.</li></ol>
+      <div class="security-note">Keep your authenticator backup/recovery method secure. The TOTP secret is never sent to Telegram logs.</div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}<script src="{{ base }}/static/two_factor.js"></script>{% endblock %}
