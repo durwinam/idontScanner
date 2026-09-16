@@ -111,6 +111,8 @@ BUTTON_STYLES = {
     "security_password": "primary",
     "security_reset": "danger",
     "security_logout": "danger",
+    "security_2fa_enable": "success",
+    "security_2fa_disable": "danger",
 }
 
 BUTTON_ICONS = {
@@ -272,6 +274,36 @@ def security_text(premium: bool = True) -> str:
         "Please select an option from the menu below.\n\n"
         f"{ui_emoji('🔒', premium)} Two-Factor Authentication: <b>{status}</b>"
     )
+
+
+def settings_text() -> str:
+    return (
+        "<b>⚙️ Telegram Settings</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"Token: <b>{'Configured' if get_setting('telegram_token') else 'Missing'}</b>\n"
+        f"Owner: <b>{'Configured' if get_setting('telegram_owner_id') else 'Missing'}</b>\n"
+        "Sensitive credentials are never displayed.\n\n"
+        "<b>Account Security</b>\n"
+        "Manage your panel credentials and two-factor authentication from the buttons below."
+    )
+
+
+def settings_keyboard(premium: bool = True) -> dict:
+    return {
+        "inline_keyboard": [
+            [
+                button("Change Username", "security_username", premium),
+                button("Change Password", "security_password", premium),
+            ],
+            [
+                button("Reset Password", "security_reset", premium),
+                button("Disable 2FA" if totp_enabled() else "Enable 2FA",
+                       "security_2fa_disable" if totp_enabled() else "security_2fa_enable", premium),
+            ],
+            [button("Logout All Sessions", "security_logout", premium)],
+            [button("Back to Menu", "menu", premium)],
+        ]
+    }
 
 
 def menu_text(premium: bool, first_name: str | None = None) -> str:
@@ -684,7 +716,8 @@ async def handle_callback(token: str, callback: dict):
         set_setting("password", hash_password(new_password))
         with db() as con:
             con.execute("DELETE FROM sessions")
-        await edit_message_async(token, chat_id, message_id, f"<b>Password reset complete.</b>\n\nYour new temporary password is:\n<code>{html.escape(new_password)}</code>\n\nAll web sessions were revoked. Save this password now; it will not be shown again.", _back_keyboard(premium))
+        await edit_message_async(token, chat_id, message_id, f"<b>Password reset complete.</b>\n\nYour new temporary password is:\n<code>{html.escape(new_password)}</code>\n\nAll web sessions were revoked. Save this password now; it will not be shown again.", settings_keyboard(premium))
+        await security_alert(token, "Password reset", chat_id, "All web sessions revoked")
         return
 
     if action == "security_2fa_enable":
@@ -779,15 +812,11 @@ async def handle_callback(token: str, callback: dict):
         "diagnostics": lambda: format_diagnostics(premium),
         "help": lambda: format_help(premium),
         "scheduler": lambda: format_status(premium),
-        "settings": lambda: (
-            "<b>⚙️ Telegram Settings</b>\n━━━━━━━━━━━━━━━━━━━━\n"
-            f"Token: <b>{'Configured' if get_setting('telegram_token') else 'Missing'}</b>\n"
-            f"Owner: <b>{'Configured' if get_setting('telegram_owner_id') else 'Missing'}</b>\n"
-            "Sensitive credentials are never displayed."
-        ),
+        "settings": lambda: settings_text(),
     }
     if action in handlers:
-        await edit_message_async(token, chat_id, message_id, handlers[action](), _back_keyboard(premium))
+        markup = settings_keyboard(premium) if action == "settings" else _back_keyboard(premium)
+        await edit_message_async(token, chat_id, message_id, handlers[action](), markup)
 
 
 async def handle_text_message(token: str, message: dict):
@@ -801,8 +830,9 @@ async def handle_text_message(token: str, message: dict):
     security_step = _PENDING_SECURITY.get(chat_id)
     if security_step and str(chat_id) == telegram_owner_id() and text and not text.startswith("/"):
         if security_step == "username":
-            if not 3 <= len(text) <= 32:
-                await telegram_send_async("Username must be between 3 and 32 characters.", _back_keyboard(is_premium_user(user)), chat_id)
+            import re
+            if not 3 <= len(text) <= 32 or not re.fullmatch(r"[A-Za-z0-9_.-]+", text):
+                await telegram_send_async("Username must be 3–32 characters and contain only letters, numbers, dot, underscore, or hyphen.", settings_keyboard(is_premium_user(user)), chat_id)
             else:
                 set_setting("username", text)
                 _PENDING_SECURITY.pop(chat_id, None)
