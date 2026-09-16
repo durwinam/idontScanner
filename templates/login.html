@@ -28,11 +28,36 @@
       <div class="alert">Username must be 3–32 characters and password must be at least 8 characters.</div>
       {% elif request.query_params.get('error') == 'invalid' %}
       <div class="alert">Invalid username or password.</div>
+      {% elif request.query_params.get('error') == 'blocked' %}
+      <div class="alert">Too many failed attempts from this IP. Access is temporarily blocked.</div>
+      {% elif request.query_params.get('error') == 'invalid_2fa' %}
+      <div class="alert">Invalid two-factor authentication code.</div>
       {% endif %}
 
       <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf }}">
 
+        {% if two_factor_step %}
+        <label>
+          Two-Factor Code
+          <input
+            name="two_factor_code"
+            inputmode="numeric"
+            pattern="[0-9]{6}"
+            minlength="6"
+            maxlength="6"
+            required
+            autocomplete="one-time-code"
+            placeholder="000000"
+            autofocus
+          >
+        </label>
+        <p>Enter the 6-digit code from your authenticator app.</p>
+        <button class="primary wide" type="submit">
+          {% include 'icons/lock.svg' %}
+          Verify Code
+        </button>
+        {% else %}
         <label>
           Username
           <input
@@ -62,6 +87,7 @@
           {% include 'icons/lock.svg' %}
           {% if setup %}Initialize Panel{% else %}Sign In{% endif %}
         </button>
+        {% endif %}
       </form>
 
       <footer>{{ app_version }} · HTTP local-first security</footer>
