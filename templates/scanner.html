@@ -18,7 +18,7 @@
 
 <div class="scanner-tabs">
   <a data-mode="domain" href="?mode=domain">{% include 'icons/globe.svg' %} Domain Scanner</a>
-  <a data-mode="sni" href="?mode=sni">{% include 'icons/target.svg' %} SNI / TLS Check</a>
+  <a data-mode="sni" href="/sni/">{% include 'icons/target.svg' %} SNI / TLS Check</a>
   <a data-mode="cdn" href="?mode=cdn">{% include 'icons/cloud.svg' %} CDN Diagnostics</a>
 </div>
 
@@ -152,6 +152,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script>window.IDONT_MODE = {{ request.query_params.get('mode', 'domain')|tojson }};</script>
+<script>window.IDONT_MODE = {{ (scanner_mode or request.query_params.get('mode', 'domain'))|tojson }};</script>
 <script src="{{ base }}/static/scanner.js"></script>
 {% endblock %}

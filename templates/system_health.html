@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}System Health — idontScanner{% endblock %}
+{% block crumb %}System Health{% endblock %}
+{% block content %}
+<section class="page-head"><div><span class="eyebrow">DIAGNOSTICS</span><h1>System Health</h1><p>A focused health center. Checks run only while this page is open.</p></div></section>
+<section class="panel glass health-hero">
+  <div class="health-score"><div class="health-score-ring"><span id="healthScore">—</span><small>/100</small></div><div><span class="eyebrow">SYSTEM HEALTH</span><h2 id="healthLabel">Checking…</h2><p id="healthUpdated" class="muted">Waiting for first check</p></div></div>
+  <button class="secondary" id="healthRefresh">{% include 'icons/activity.svg' %} Check now</button>
+</section>
+<section class="health-grid">
+  <article class="panel glass health-card"><div class="panel-head"><div><h2>Services</h2><span class="muted">Core availability</span></div></div><div id="healthServices" class="health-list"></div></article>
+  <article class="panel glass health-card"><div class="panel-head"><div><h2>Resources</h2><span class="muted">Current host pressure</span></div></div><div id="healthResources" class="health-metrics"></div></article>
+  <article class="panel glass health-card"><div class="panel-head"><div><h2>Runtime</h2><span class="muted">Operational details</span></div></div><div id="healthRuntime" class="health-metrics"></div></article>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ base }}/static/system_health.js"></script>{% endblock %}
