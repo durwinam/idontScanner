@@ -1,11 +1,21 @@
-# v4.0.2
+# Changelog
+
+## v4.0.3
+
+- Fixed Telegram Account Security navigation and callback handling.
+- Added native Telegram button colors and Premium custom-emoji icons.
+- Added a legacy fallback for clients/bots that cannot use native button styling.
+- Improved Telegram callback error isolation so one failed callback cannot stop other bot interactions.
+- Preserved legacy `telegram_chat_id` as an owner fallback for existing installations.
+
+# v4.0.3
 
 - Fixed the mobile boot loading screen animations.
 - Boot orbit, logo pulse, and progress bar now animate reliably even when interface animations are disabled.
 - Progress bar now visibly fills during startup.
 - Increased the mobile boot screen minimum display time for smoother rendering.
 - Fixed `update.sh` catalog validation so the Python `tools` package is resolved correctly.
-- Bumped installer/runtime identifiers to v4.0.2.
+- Bumped installer/runtime identifiers to v4.0.3.
 - Reworked Telegram inline keyboards to use stable Bot API fields, removing slow compatibility fallbacks.
 - Fixed Account Security navigation and added Change Username, Change Password, Reset Password, Logout All Sessions, and Enable/Disable 2FA.
 - Added TOTP-based 2FA verification for web panel login.

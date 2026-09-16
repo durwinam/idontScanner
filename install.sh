@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 
 APP="idontScanner"
-VERSION="v4.0.2"
+VERSION="v4.0.3"
 SERVICE="idontscanner"
 
 APP_DIR="/opt/idontScanner"
