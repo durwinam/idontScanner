@@ -64,7 +64,7 @@ sudo bash install.sh --fresh
 ---
 
 <p align="center">
-  <img src="static/logo/IMG_0397.jpeg" alt="idontScanner Logo" width="420">
+  <img src="static/logo/IMG_0397.jpg" alt="idontScanner Logo" width="420">
 </p>
 
 ## 🔄 Update بدون نصب مجدد
@@ -251,7 +251,7 @@ Telegram اختیاری است و با **Polling** کار می‌کند؛ بنا
 /status
 ```
 <p align="center">
-  <img src="static/logo/IMG_0399.jpeg" alt="idontScanner" width="420">
+  <img src="static/logo/IMG_0399.jpg" alt="idontScanner" width="420">
 </p>
 ---
 
@@ -341,7 +341,7 @@ sudo bash install.sh --fresh
 ⚠️ این حالت دیتابیس، History، Domainها، Telegram، Scheduler و حساب کاربری قبلی را حذف می‌کند.
 
 <p align="center">
-  <img src="static/logo/IMG_0398.jpeg" alt="idontScanner" width="420">
+  <img src="static/logo/IMG_0398.jpg" alt="idontScanner" width="420">
 </p>
 ---
 
