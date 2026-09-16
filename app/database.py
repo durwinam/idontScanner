@@ -219,13 +219,7 @@ def telegram_admin_ids():
 
 
 def telegram_owner_id():
-    """Return the configured Telegram owner, with legacy DB compatibility."""
-    owner = get_setting('telegram_owner_id', '').strip()
-    if owner:
-        return owner
-    # Older installations used telegram_chat_id. Keep Account Security
-    # functional even when an update has not yet run the DB migration.
-    return get_setting('telegram_chat_id', '').strip()
+    return get_setting('telegram_owner_id', '').strip()
 
 
 def telegram_allowed_chat(chat_id):

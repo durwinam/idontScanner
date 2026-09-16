@@ -773,7 +773,7 @@ async def _best_effort_isp(ip: str):
         return None
     def fetch():
         try:
-            req=urllib.request.Request(f"https://ipwho.is/{ip}", headers={"User-Agent":"idontScanner/4.0.4"})
+            req=urllib.request.Request(f"https://ipwho.is/{ip}", headers={"User-Agent":"idontScanner/4.0.5"})
             with urllib.request.urlopen(req, timeout=1.5) as r:
                 data=json.loads(r.read(12000).decode("utf-8","replace"))
             conn=data.get("connection") or {}
@@ -1444,77 +1444,6 @@ async def preferences_get(request: Request):
         "resource_range": int(get_setting("resource_range", "60") or 60),
         "animations": get_setting("animations", "1") == "1",
     }
-
-
-@app.get("/api/security/2fa")
-async def two_factor_status(request: Request):
-    if not require_auth(request):
-        return JSONResponse({"error": "unauthorized"}, status_code=401)
-    return {"enabled": totp_enabled()}
-
-
-@app.post("/api/security/2fa/setup")
-async def two_factor_setup(request: Request):
-    body, error = await _authorized_json(request)
-    if error:
-        return error
-    if totp_enabled():
-        return JSONResponse({"error": "2FA is already enabled."}, status_code=409)
-    from app.security import new_totp_secret, provisioning_uri
-    secret = new_totp_secret()
-    request.session["pending_totp_secret"] = secret
-    username = get_setting("username", "admin")
-    return {
-        "ok": True,
-        "secret": secret,
-        "provisioning_uri": provisioning_uri(username, secret),
-    }
-
-
-@app.post("/api/security/2fa/enable")
-async def two_factor_enable(request: Request):
-    body, error = await _authorized_json(request)
-    if error:
-        return error
-    secret = str(request.session.get("pending_totp_secret", ""))
-    code = str(body.get("code", ""))
-    if not secret:
-        return JSONResponse({"error": "Start 2FA setup first."}, status_code=400)
-    if not verify_totp(secret, code):
-        return JSONResponse({"error": "Invalid authenticator code."}, status_code=400)
-    set_setting("totp_secret", secret)
-    set_setting("totp_enabled", "1")
-    request.session.pop("pending_totp_secret", None)
-    try:
-        from app.telegram import security_alert
-        await security_alert(get_setting("telegram_token"), "2FA enabled from panel", client_ip(request), "Success")
-    except Exception:
-        pass
-    return {"ok": True, "enabled": True}
-
-
-@app.post("/api/security/2fa/disable")
-async def two_factor_disable(request: Request):
-    body, error = await _authorized_json(request)
-    if error:
-        return error
-    if not totp_enabled():
-        return {"ok": True, "enabled": False}
-    password = str(body.get("password", ""))
-    code = str(body.get("code", ""))
-    stored = get_setting("password", "")
-    if not stored or not verify_password(password, stored):
-        return JSONResponse({"error": "Current password is incorrect."}, status_code=400)
-    if not verify_totp(get_setting("totp_secret", ""), code):
-        return JSONResponse({"error": "Invalid authenticator code."}, status_code=400)
-    set_setting("totp_enabled", "0")
-    set_setting("totp_secret", "")
-    try:
-        from app.telegram import security_alert
-        await security_alert(get_setting("telegram_token"), "2FA disabled from panel", client_ip(request), "Success")
-    except Exception:
-        pass
-    return {"ok": True, "enabled": False}
 
 
 @app.post("/api/preferences")
