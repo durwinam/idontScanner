@@ -1,14 +1,14 @@
-# v4.0.5
+# v4.0.6
 
-Maintenance and security release based on v4.0.2.
+Security and Telegram usability release.
 
-- Fixed Telegram Account Security callbacks so Change Username, Change Password, Reset Password, and 2FA actions execute reliably.
-- Added callback error handling and a message-send fallback when Telegram message editing fails.
-- Added Telegram Premium custom emoji button icons with compatibility fallback for older clients.
-- Added explicit Reset Password confirmation before invalidating sessions.
-- Preserved TOTP 2FA, per-IP login rate limiting, and security alerts.
-- Fixed duplicate `/start` dashboard delivery.
-- Preserved all existing v4.0.5 application functionality and version identifiers.
+- Added a dedicated Two-Factor Authentication section in the web panel.
+- Added secure TOTP enable/disable flows requiring password verification.
+- Added a dedicated Telegram 2FA submenu with Enable/Disable and Web Panel shortcut.
+- Added Telegram inline button styles (`primary`, `success`, `danger`) and preserved Premium custom emoji icons with fallback.
+- Hardened Telegram callback error handling and security audit logging.
+- Added public panel URL configuration for the Telegram 2FA web shortcut.
+- Preserved all existing scanner functionality.
 
 # v4.0.1
 
