@@ -53,7 +53,7 @@ sudo bash install.sh --fresh
 ---
 
 <p align="center">
-  <img src="static/logo/IMG_0397.jpeg" alt="Логотип idontScanner" width="420">
+  <img src="static/logo/IMG_0397.jpg" alt="Логотип idontScanner" width="420">
 </p>
 
 ## 🔄 Обновление без переустановки
@@ -242,7 +242,7 @@ Telegram является необязательным и работает че�
 ```
 
 <p align="center">
-  <img src="static/logo/IMG_0399.jpeg" alt="idontScanner" width="420">
+  <img src="static/logo/IMG_0399.jpg" alt="idontScanner" width="420">
 </p>
 
 ---
@@ -333,7 +333,7 @@ sudo bash install.sh --fresh
 ⚠️ Этот режим удаляет базу данных, историю, домены, Telegram, Scheduler и предыдущую учётную запись пользователя.
 
 <p align="center">
-  <img src="static/logo/IMG_0398.jpeg" alt="idontScanner" width="420">
+  <img src="static/logo/IMG_0398.jpg" alt="idontScanner" width="420">
 </p>
 
 ---
