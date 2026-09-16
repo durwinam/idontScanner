@@ -28,7 +28,7 @@
       <div class="custom-select" data-select="ranking">
         <button type="button" class="select-trigger"><span>Balanced</span><b>⌄</b></button>
         <div class="select-menu">
-          <button type="button" data-value="balanced" class="selected"><span class="option-check" aria-hidden="true">{% include 'icons/check.svg' %}</span><span>Balanced</span></button>
+          <button type="button" data-value="balanced" class="selected">✓ <span>Balanced</span></button>
           <button type="button" data-value="latency"><span>Low latency</span></button>
           <button type="button" data-value="tls"><span>TLS compatibility</span></button>
           <button type="button" data-value="stability"><span>Stability</span></button>
@@ -70,6 +70,6 @@
   <div id="benchmarkResults" class="benchmark-results"></div>
 </section>
 
-<div class="target-details-modal" id="targetDetailsModal" aria-hidden="true"><div class="target-details-card glass"><button class="target-details-close" id="closeTargetDetails" type="button" aria-label="Close">{% include 'icons/x.svg' %}</button><div id="targetDetailsBody"></div></div></div>
+<div class="target-details-modal" id="targetDetailsModal" aria-hidden="true"><div class="target-details-card glass"><button class="target-details-close" id="closeTargetDetails" type="button">×</button><div id="targetDetailsBody"></div></div></div>
 {% endblock %}
 {% block scripts %}<script src="{{ base }}/static/targets.js"></script>{% endblock %}
