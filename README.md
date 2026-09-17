@@ -1,4 +1,4 @@
-## v4.0.3
+## v4.0.6
 
 - Telegram dashboard upgraded with colored buttons and supplied Premium custom emojis.
 - Check Host is available in Telegram with Global and six Iran nodes.
@@ -55,7 +55,7 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 
 ```bash
 unzip idontScanner-main.zip
-cd idontScanner-4.0.3
+cd idontScanner-4.0.6
 sudo bash install.sh --fresh
 ```
 
@@ -385,7 +385,7 @@ MIT License — Copyright © 2026 **durwinam**
 </div>
 
 
-## v4.0.3
+## v4.0.6
 
 - Global Check Host page powered by the Check-Host API: Info, Ping, HTTP, TCP, UDP, and DNS.
 - Smart Connection now reports Download, Upload, Latency, and Jitter.
