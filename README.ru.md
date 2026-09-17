@@ -43,8 +43,8 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 ### Установка из ZIP-файла
 
 ```bash
-unzip idontScanner-v4.0.0.zip
-cd idontScanner-4.0.0
+unzip idontScanner-main.zip
+cd idontScanner-4.0.6
 sudo bash install.sh --fresh
 ```
 
@@ -354,12 +354,12 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 
 ## 📦 Версия
 
-**v4.0.0**
+**v4.0.6**
 
 ---
 
 
-## v4.0.0 highlights
+## v4.0.6 highlights
 
 - Nine coordinated interface themes (2 core themes + 7 additional themes).
 - Hybrid resource visualization with circular gauges and lightweight live graphs.
