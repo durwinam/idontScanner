@@ -1,3 +1,13 @@
+# v4.3.0
+
+## Telegram Scan Analytics
+- Added a modern latency area chart for interactive and scheduled scans.
+- Scan charts use real scan results and preserve scan order for the visualization.
+- Captions include best domain, lowest ping, worst domain, average latency, score, and duration.
+- Added a safe text fallback if chart rendering or Telegram photo upload fails.
+- Added a bounded temporary-file lifecycle for generated charts.
+- Kept the existing SQLite schema and scan persistence logic unchanged.
+
 # v4.0.6
 
 Security and Telegram usability release.
