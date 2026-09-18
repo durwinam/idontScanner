@@ -1,9 +1,4 @@
-## v4.0.6
-
-- Telegram dashboard upgraded with colored buttons and supplied Premium custom emojis.
-- Check Host is available in Telegram with Global and six Iran nodes.
-- Smart Connection and VPS diagnostics expose Download, Upload, Latency and Jitter.
-- Custom IP remains an independent raw target and never overrides the 100-domain scanner.
+## v4.3.0
 
 **🇮🇷 فارسی | 🇬🇧 English | 🇷🇺 Русский | 🇨🇳 中文**
 
@@ -55,7 +50,7 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 
 ```bash
 unzip idontScanner-main.zip
-cd idontScanner-4.0.6
+cd idontScanner-main
 sudo bash install.sh --fresh
 ```
 
@@ -361,22 +356,23 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 
 ## 📦 Version
 
-**v4.0.0**
+**v4.3.0**
 
 ---
 
 
-## v4.0.0 highlights
+## v4.3.0 highlights
 
-- Nine coordinated interface themes (2 core themes + 7 additional themes).
-- Hybrid resource visualization with circular gauges and lightweight live graphs.
-- Dedicated System Health diagnostics page.
-- Settings and Telegram integration are separated.
-- Owner-only Telegram account security actions with Premium Custom Emoji support.
-- Connection Tester has a hard 10-second execution limit.
-- Find Target keeps its 30-second hard deadline and supports up to 10 certificate-backed SAN candidates.
-- Log storage is bounded to a single 15 MB rotating application log.
-- UI animations use lightweight CSS and resource polling pauses when the dashboard is not visible.
+• Added modern network performance charts
+• Improved Scan Complete reports
+• Added detailed latency and target performance statistics
+• Improved Find Target intelligence and target analysis
+• Improved SNI and SAN analysis
+• Enhanced Telegram Bot interface and security
+• Improved Web Panel UI, CSS and responsive design
+• Improved performance, stability and security
+• Existing database structure and data preserved
+• Multiple bug fixes and internal improvements
 
 ## 📄 License
 
@@ -385,7 +381,7 @@ MIT License — Copyright © 2026 **durwinam**
 </div>
 
 
-## v4.0.6
+## v4.3.0
 
 - Global Check Host page powered by the Check-Host API: Info, Ping, HTTP, TCP, UDP, and DNS.
 - Smart Connection now reports Download, Upload, Latency, and Jitter.
