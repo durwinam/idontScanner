@@ -5,9 +5,9 @@ from __future__ import annotations
 import asyncio
 import time
 
-from app.database import db
+from app.database import db, get_setting, telegram_configured_ids
 from app.scanner import run_scan
-from app.telegram import format_scan_message, telegram_send
+from app.telegram import send_scan_result_async
 
 
 async def scheduler_loop():
@@ -42,7 +42,9 @@ async def scheduler_loop():
                     )
 
                 if row["notify_mode"] == "all":
-                    telegram_send(format_scan_message(scan))
+                    token = get_setting("telegram_token")
+                    for chat_id in telegram_configured_ids():
+                        await send_scan_result_async(token, chat_id, scan, True, True)
                 elif row["notify_mode"] == "changes":
                     failed = [
                         result
@@ -50,11 +52,9 @@ async def scheduler_loop():
                         if result.get("status") != "ok"
                     ]
                     if failed:
-                        message = (
-                            format_scan_message(scan)
-                            + f"\n\n⚠️ <b>{len(failed)} target(s) need attention.</b>"
-                        )
-                        telegram_send(message)
+                        token = get_setting("telegram_token")
+                        for chat_id in telegram_configured_ids():
+                            await send_scan_result_async(token, chat_id, scan, True, True)
         except Exception:
             await asyncio.sleep(5)
 

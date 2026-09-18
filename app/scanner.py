@@ -556,6 +556,7 @@ async def run_scan(connect_target: str | None = None):
         )
 
     results = []
+    chart_results = []
     for domain, result in pairs:
         item = {
             "domain": domain["domain"],
@@ -573,6 +574,7 @@ async def run_scan(connect_target: str | None = None):
         item["host_ok"] = bool(item.get("tcp_ms") is not None and healthy)
         item["sni_ok"] = bool(item.get("tls_version") and healthy)
         item["score"] = round((healthy*.25 + latency_score*.35 + tls_score*.25 + alpn_score*.15) * 100, 1)
+        chart_results.append(item.copy())
         results.append(item)
     results.sort(key=lambda item: (item.get("status") != "ok", -item.get("score", 0), item.get("latency_ms") if item.get("latency_ms") is not None else 999999))
 
@@ -617,5 +619,7 @@ async def run_scan(connect_target: str | None = None):
         "failed": failed_count,
         "average_ms": round(average, 1) if average is not None else None,
         "results": results,
+        # Presentation-only order for Telegram charts; never persisted.
+        "chart_results": chart_results,
     }
 

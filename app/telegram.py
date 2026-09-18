@@ -12,8 +12,13 @@ import html
 import json
 import secrets
 import logging
+import os
+import math
 from datetime import datetime, timezone
 from urllib.request import Request as URLRequest, urlopen
+import uuid
+
+from app.telegram_chart import build_scan_chart
 
 from app.check_host import fetch_result, normalize_results, start_check
 from app.connection import diagnose_config, parse_config, probe_services
@@ -202,6 +207,67 @@ def telegram_send(
     return sent
 
 
+def _telegram_send_photo(token: str, chat_id: int | str, path: str, caption: str, reply_markup: dict | None = None) -> bool:
+    """Upload a generated chart as a photo using Telegram's multipart API."""
+    boundary = f"----idontScanner{uuid.uuid4().hex}"
+    data = open(path, "rb").read()
+    fields = {
+        "chat_id": str(chat_id),
+        "caption": caption[:1024],
+        "parse_mode": "HTML",
+        "show_caption_above_media": "true",
+    }
+    if reply_markup:
+        import json as _json
+        fields["reply_markup"] = _json.dumps(reply_markup, separators=(",", ":"))
+
+    chunks = []
+    for key, value in fields.items():
+        chunks.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{key}\"\r\n\r\n{value}\r\n".encode())
+    chunks.append(
+        f"--{boundary}\r\nContent-Disposition: form-data; name=\"photo\"; filename=\"scan.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n".encode()
+        + data + b"\r\n"
+    )
+    chunks.append(f"--{boundary}--\r\n".encode())
+    request = URLRequest(
+        f"https://api.telegram.org/bot{token}/sendPhoto",
+        data=b"".join(chunks),
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+    )
+    try:
+        with urlopen(request, timeout=20) as response:
+            result = json.loads(response.read().decode())
+        return bool(result.get("ok"))
+    except Exception:
+        logger.exception("Telegram scan chart upload failed")
+        return False
+
+
+async def send_scan_result_async(token: str, chat_id: int | str, scan: dict, premium: bool = True, scheduled: bool = False, fallback_markup: dict | None = None) -> bool:
+    """Send a scan as a chart with a compact, factual caption.
+
+    If chart rendering/upload fails, fall back to the existing text summary so
+    a visualization failure can never hide the actual scan result.
+    """
+    path = None
+    try:
+        path = await asyncio.to_thread(build_scan_chart, scan, scheduled)
+        if path:
+            caption = format_scan_caption(scan, premium, scheduled)
+            sent = await asyncio.to_thread(_telegram_send_photo, token, chat_id, path, caption, fallback_markup)
+            if sent:
+                return True
+    except Exception:
+        logger.exception("Telegram scan chart generation failed")
+    finally:
+        if path:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+    return await telegram_send_async(format_scan_message(scan, premium, scheduled), fallback_markup, chat_id)
+
+
 def is_premium_user(user: dict | None) -> bool:
     return bool((user or {}).get("is_premium", False))
 
@@ -320,6 +386,44 @@ def menu_text(premium: bool, first_name: str | None = None) -> str:
 
 def _back_keyboard(premium: bool) -> dict:
     return {"inline_keyboard": [[button("Back to Menu", "menu", premium)]]}
+
+
+def format_scan_caption(scan: dict, premium: bool = True, scheduled: bool = False) -> str:
+    """Caption paired with the scan chart; keep it within Telegram's limit."""
+    results = scan.get("chart_results") or scan.get("results") or []
+    successful = [
+        r for r in results
+        if r.get("status") == "ok" and _finite_latency(r.get("latency_ms")) is not None
+    ]
+    fastest = min(successful, key=lambda r: float(r.get("latency_ms"))) if successful else None
+    slowest = max(successful, key=lambda r: float(r.get("latency_ms"))) if successful else None
+    title = "Scheduled Scan Complete" if scheduled else "Scan Complete"
+    lines = [
+        f"<b>{ui_emoji('🛰', premium)} {title}</b>",
+        "━━━━━━━━━━━━━━━━━━━━",
+        f"{ui_emoji('🌐', premium)} Targets: <b>{scan.get('total', 0)}</b> · Online: <b>{scan.get('ok', 0)}</b>",
+        f"{ui_emoji('⚡', premium)} Average: <b>{scan.get('average_ms', 'N/A')} ms</b>",
+        f"{ui_emoji('🏅', premium)} Score: <b>{scan.get('score', 'N/A')}/100</b> · <b>{html.escape(str(scan.get('score_label', 'N/A')))}</b>",
+    ]
+    if fastest:
+        domain = html.escape(str(fastest.get("domain", "Target")))
+        ping = float(fastest.get("latency_ms"))
+        lines.append(f"🏆 <b>Best domain:</b> <code>{domain}</code> · <b>{ping:.1f} ms</b>")
+        lines.append(f"⚡ <b>Lowest ping:</b> <b>{ping:.1f} ms</b>")
+    if slowest:
+        domain = html.escape(str(slowest.get("domain", "Target")))
+        ping = float(slowest.get("latency_ms"))
+        lines.append(f"🐢 <b>Worst domain:</b> <code>{domain}</code> · <b>{ping:.1f} ms</b>")
+    lines.append(f"⏱ <b>Duration:</b> {scan.get('duration_ms', 'N/A')} ms")
+    return "\n".join(lines)[:1024]
+
+
+def _finite_latency(value):
+    try:
+        value = float(value)
+        return value if value >= 0 and math.isfinite(value) else None
+    except (TypeError, ValueError):
+        return None
 
 
 def format_scan_message(scan: dict, premium: bool = True, scheduled: bool = False) -> str:
@@ -828,7 +932,8 @@ async def handle_callback(token: str, callback: dict):
     if action == "scan":
         await edit_message_async(token, chat_id, message_id, f"{ui_emoji('⚡️', premium)} <b>Scanning 100 domains...</b>", _back_keyboard(premium))
         scan = await run_scan()
-        await edit_message_async(token, chat_id, message_id, format_scan_message(scan, premium), _back_keyboard(premium))
+        await edit_message_async(token, chat_id, message_id, f"{ui_emoji('🏆', premium)} <b>Scan complete — chart generated.</b>", _back_keyboard(premium))
+        await send_scan_result_async(token, chat_id, scan, premium, False, _back_keyboard(premium))
         return
 
     if action == "check_host":
@@ -996,7 +1101,7 @@ async def handle_text_message(token: str, message: dict):
         await send_dashboard_async(token, chat_id, user)
     elif text == "/scan":
         scan = await run_scan()
-        await telegram_send_async(format_scan_message(scan, is_premium_user(user)), chat_id=chat_id)
+        await send_scan_result_async(token, chat_id, scan, is_premium_user(user), False, _back_keyboard(is_premium_user(user)))
     elif text == "/status":
         await telegram_send_async(format_status(is_premium_user(user)), _back_keyboard(is_premium_user(user)), chat_id)
     elif text.startswith("/checkhost "):
