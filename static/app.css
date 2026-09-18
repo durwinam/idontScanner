@@ -2546,7 +2546,7 @@ html[data-theme="light"] .select-menu button:hover,html[data-theme="light"] .sel
 html[data-theme="light"] #customTargetList{background:rgba(255,255,255,.78);color:#172033}
 
 
-/* v4.0.6 — prevent enhanced native selects from rendering as duplicate controls */
+/* v4.3.0 — prevent enhanced native selects from rendering as duplicate controls */
 select.native-select-source{position:absolute!important;width:1px!important;height:1px!important;min-width:0!important;margin:0!important;padding:0!important;opacity:0!important;pointer-events:none!important;border:0!important;overflow:hidden!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;white-space:nowrap!important}
 /* v4.0.0 — UI polish, portal menus, compact target results, boot/deep loading */
 .app-boot-loader{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;align-content:center;gap:20px;background:radial-gradient(circle at 50% 35%,rgba(103,232,255,.09),transparent 28%),#07090f;color:var(--text);transition:opacity .42s ease,visibility .42s ease}.app-boot-loader.is-ready{opacity:0;visibility:hidden;pointer-events:none}.boot-brand{display:grid;justify-items:center;gap:6px}.boot-brand strong{font-size:19px;letter-spacing:-.02em}.boot-brand small{font-size:11px;color:var(--muted)}.boot-logo{width:62px;height:62px;border-radius:19px;display:grid;place-items:center;color:var(--cyan);background:linear-gradient(145deg,rgba(103,232,255,.16),rgba(167,139,250,.18));border:1px solid rgba(103,232,255,.28);box-shadow:0 0 45px rgba(103,232,255,.14),inset 0 1px rgba(255,255,255,.12);animation:bootPulse 1.8s ease-in-out infinite}.boot-logo svg{width:31px;height:31px}.boot-progress{width:170px;height:3px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden}.boot-progress span{display:block;width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--cyan),var(--purple));animation:bootProgressFill 1.35s cubic-bezier(.2,.75,.25,1) forwards}.boot-orbit{position:absolute;width:145px;height:145px;border:1px solid rgba(103,232,255,.09);border-radius:50%;animation:bootSpin 5s linear infinite}.boot-orbit span{position:absolute;width:5px;height:5px;border-radius:50%;background:var(--cyan);box-shadow:0 0 14px var(--cyan)}.boot-orbit span:nth-child(1){top:9px;left:50%}.boot-orbit span:nth-child(2){right:16px;bottom:25px;background:var(--purple);box-shadow:0 0 14px var(--purple)}.boot-orbit span:nth-child(3){left:17px;bottom:24px}@keyframes bootSpin{to{transform:rotate(360deg)}}@keyframes bootPulse{50%{transform:scale(1.035);box-shadow:0 0 58px rgba(103,232,255,.2),inset 0 1px rgba(255,255,255,.12)}}@keyframes bootProgressFill{0%{width:0;opacity:.75}18%{opacity:1}100%{width:100%;opacity:1}}
@@ -2900,7 +2900,7 @@ html[data-theme="light"] .resource-panel::before {
 }
 
 
-/* v4.0.6 — boot loader animation must remain live during startup. */
+/* v4.3.0 — boot loader animation must remain live during startup. */
 html[data-animations="0"] .app-boot-loader .boot-logo,
 html[data-animations="0"] .app-boot-loader .boot-orbit,
 html[data-animations="0"] .app-boot-loader .boot-progress span,
