@@ -1,4 +1,4 @@
-## v4.3.0
+## v4.4.0
 
 **🇮🇷 فارسی | 🇬🇧 English | 🇷🇺 Русский | 🇨🇳 中文**
 
@@ -356,23 +356,19 @@ curl -fsSL https://raw.githubusercontent.com/durwinam/idontScanner/main/install.
 
 ## 📦 Version
 
-**v4.3.0**
+**v4.4.0**
 
 ---
 
 
-## v4.3.0 highlights
+## v4.4.0 highlights
 
-• Added modern network performance charts
-• Improved Scan Complete reports
-• Added detailed latency and target performance statistics
-• Improved Find Target intelligence and target analysis
-• Improved SNI and SAN analysis
-• Enhanced Telegram Bot interface and security
-• Improved Web Panel UI, CSS and responsive design
-• Improved performance, stability and security
-• Existing database structure and data preserved
-• Multiple bug fixes and internal improvements
+• Added 50 new high-quality targets
+Expanded domain targets to 150
+Improved 3,000-target rotation system
+Enhanced target scoring with Latency, TLS, ALPN, SAN & Certificate data
+Updated installer and target catalog
+UI refinements and stability improvements
 
 ## 📄 License
 
@@ -381,7 +377,7 @@ MIT License — Copyright © 2026 **durwinam**
 </div>
 
 
-## v4.3.0
+## v4.4.0
 
 - Global Check Host page powered by the Check-Host API: Info, Ping, HTTP, TCP, UDP, and DNS.
 - Smart Connection now reports Download, Upload, Latency, and Jitter.
