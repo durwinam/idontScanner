@@ -1,3 +1,14 @@
+# v4.4.0
+
+## Target Intelligence & Catalog Refresh
+
+- Added 50 curated HTTPS targets across Google, Apple, Microsoft, AWS, CDN, developer and business ecosystems.
+- Expanded the built-in Domains catalog to 150 unique targets.
+- Refreshed the 3,000-target benchmark strategy: 2,000 high-ranked core targets plus a deterministic 1,000-target rotation from the next 10,000 candidates.
+- Kept runtime scoring focused on observed latency, TLS version, ALPN, certificate/SAN quality and stability.
+- Updated installer and target-catalog user agent to v4.4.0.
+- Preserved the existing glass/minimal UI instead of adding dashboard clutter.
+
 # v4.3.0
 
 ## Telegram Scan Analytics
