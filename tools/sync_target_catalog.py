@@ -22,7 +22,10 @@ import zipfile
 from pathlib import Path
 
 COUNT_DEFAULT = 3000
-USER_AGENT = "idontScanner-target-catalog/4.3.0"
+CORE_COUNT = 2000
+ROTATION_COUNT = 1000
+ROTATION_POOL_END = 12000
+USER_AGENT = "idontScanner-target-catalog/4.4.0"
 
 SOURCES = [
     # Prefer the official ranking, then GitHub mirrors/cache endpoints that
@@ -160,6 +163,27 @@ def parse(blob: bytes, parser: str, count: int) -> list[str]:
     return parse_lines(blob, count)
 
 
+def build_rotated_catalog(pool: list[str], count: int) -> list[str]:
+    """Build a fresh 3,000-target catalog with a deliberate 1,000-target rotation.
+
+    The first 2,000 entries preserve the strongest/popular portion of the
+    ranking. The remaining 1,000 are selected from the next 9,000 candidates
+    at a deterministic spread, so an update does not keep returning the exact
+    same top-3,000 set forever. Runtime benchmarking still measures latency,
+    TLS, ALPN and certificate/SAN quality before presenting targets.
+    """
+    if count < 3000:
+        return pool[:count]
+    core = pool[:CORE_COUNT]
+    rotation_pool = pool[CORE_COUNT:ROTATION_POOL_END]
+    if len(rotation_pool) < ROTATION_COUNT:
+        return pool[:count]
+
+    step = len(rotation_pool) / ROTATION_COUNT
+    rotated = [rotation_pool[min(len(rotation_pool) - 1, int(i * step))] for i in range(ROTATION_COUNT)]
+    return _unique(core + rotated, count)
+
+
 def atomic_write(path: Path, domains: list[str], source: str, transport: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
@@ -219,7 +243,10 @@ def main() -> int:
     ap.add_argument("--output", required=True)
     ap.add_argument("--count", type=int, default=COUNT_DEFAULT)
     args = ap.parse_args()
-    domains, source, transport, failures = fetch(args.count)
+    fetch_count = max(args.count, ROTATION_POOL_END if args.count >= 3000 else args.count)
+    domains, source, transport, failures = fetch(fetch_count)
+    if domains and args.count >= 3000:
+        domains = build_rotated_catalog(domains, args.count)
     if domains:
         atomic_write(Path(args.output), domains, source, transport)
         print(f"wrote {len(domains)} domains to {args.output} (source={source}, transport={transport})")
@@ -228,7 +255,7 @@ def main() -> int:
             for failure in failures:
                 print(f"  - {failure}")
         return 0
-    print("WARNING: could not prepare the 3,000-target catalog.", flush=True)
+    print(f"WARNING: could not prepare the {args.count}-target catalog.", flush=True)
     for failure in failures:
         print(f"  - {failure}")
     return 2
