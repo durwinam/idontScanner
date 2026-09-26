@@ -1,3 +1,14 @@
+# v4.5.0 — Smart Quality & Telegram Testing
+
+- Replaced the built-in 150-domain catalog with a fresh, quality-focused candidate set.
+- Domain scans now run across 150 targets and rank the same UI rows after the scan.
+- Added six-Iran-node reachability enrichment to target quality scoring.
+- Added post-scan Quality Score and Rank details without adding dashboard clutter.
+- Expanded target benchmark catalog rotation to a fresh 3,000-candidate release set from a 20,000-domain pool.
+- Added Telegram Smart Testing for VLESS, VMess, Trojan, Shadowsocks and Hysteria2 configs.
+- Smart Testing reports endpoint diagnostics, Instagram/Telegram/YouTube reachability, six-Iran-node results, and VPS upload/download/latency.
+- Preserved the existing Telegram chart, SVG/custom-emoji UI, scanner flow and proven probe logic.
+
 # v4.4.0
 
 ## Target Intelligence & Catalog Refresh
