@@ -20,7 +20,7 @@ import uuid
 
 from app.telegram_chart import build_scan_chart
 
-from app.check_host import fetch_result, normalize_results, start_check
+from app.check_host import IRAN_NODES, fetch_result, normalize_results, start_check
 from app.connection import diagnose_config, parse_config, probe_services
 from app.database import (
     db,
@@ -155,6 +155,106 @@ BUTTON_ICONS = {
     "security_2fa_enable": "🔒",
     "security_2fa_disable": "🔒",
 }
+
+
+SMART_CONFIG_SCHEMES = ("vless://", "vmess://", "trojan://", "ss://", "hysteria2://")
+
+
+async def _iran_service_matrix() -> dict[str, dict]:
+    """Measure service reachability from the six configured Iran nodes."""
+    endpoints = {
+        "Instagram": "www.instagram.com:443",
+        "Telegram": "telegram.org:443",
+        "YouTube": "www.youtube.com:443",
+    }
+
+    async def one(name: str, target: str):
+        try:
+            started = await start_check("ping", target, nodes=list(IRAN_NODES))
+            raw = {}
+            normalized = {"results": [], "complete": False}
+            for _ in range(5):
+                raw = await fetch_result(started["request_id"])
+                normalized = normalize_results("ping", raw, started.get("nodes", {}))
+                if normalized.get("complete"):
+                    break
+                await asyncio.sleep(0.5)
+            return name, normalized
+        except Exception as exc:
+            return name, {"results": [], "complete": False, "error": str(exc)[:160]}
+
+    pairs = await asyncio.gather(*(one(name, target) for name, target in endpoints.items()))
+    return dict(pairs)
+
+
+def _smart_config_text(config_results: list[dict], services: dict, iran: dict, premium: bool) -> str:
+    lines = [
+        f"<b>{ui_emoji('📶', premium)} Smart Testing</b>",
+        "━━━━━━━━━━━━━━━━━━━━",
+        f"{ui_emoji('🔐', premium)} Configs: <b>{len(config_results)}</b>",
+        "",
+    ]
+    for item in config_results:
+        cfg = item.get("config") or {}
+        protocol = html.escape(str(cfg.get("protocol") or cfg.get("scheme") or "Unknown"))
+        host = html.escape(str(cfg.get("host") or "-"))
+        status = item.get("status", "failed")
+        marker = ui_emoji("🟢" if status in {"ok", "resolved"} else "🔴", premium)
+        latency = item.get("latency_ms")
+        latency_text = f"{latency} ms" if latency is not None else status.upper()
+        lines.append(f"{marker} <b>{protocol}</b> · <code>{host}</code> · {latency_text}")
+        if item.get("alpn") or item.get("tls_version"):
+            lines.append(f"   TLS: <b>{html.escape(str(item.get('tls_version') or '-'))}</b> · ALPN: <b>{html.escape(str(item.get('alpn') or '-'))}</b>")
+
+    lines += ["", f"{ui_emoji('🌐', premium)} <b>Service reachability</b>"]
+    for name in ("Instagram", "Telegram", "YouTube"):
+        result = services.get(name) or {}
+        latency = result.get("latency_ms")
+        marker = ui_emoji("🟢" if result.get("status") == "ok" else "🔴", premium)
+        lines.append(f"{marker} {name}: <b>{latency} ms</b>" if latency is not None else f"{marker} {name}: <b>Unavailable</b>")
+
+    lines += ["", f"{ui_emoji('👑', premium)} <b>Iran · 6 Nodes</b>"]
+    for name in ("Instagram", "Telegram", "YouTube"):
+        result = iran.get(name) or {}
+        values = [x.get("avg_ms") for x in result.get("results", []) if x.get("status") == "online" and x.get("avg_ms") is not None]
+        avg = round(sum(values) / len(values), 1) if values else None
+        online = len(values)
+        lines.append(f"{name}: <b>{avg} ms</b> · {online}/6 nodes" if avg is not None else f"{name}: <b>N/A</b> · {online}/6 nodes")
+
+    lines += ["", "<i>Upload/download are measured only against controlled test endpoints; arbitrary public services are never treated as throughput endpoints.</i>"]
+    return "\n".join(lines)[:3900]
+
+
+async def run_smart_testing(raw_text: str, premium: bool) -> str:
+    configs = []
+    for line in raw_text.replace("\r", "").split("\n"):
+        line = line.strip()
+        if not line or not line.lower().startswith(SMART_CONFIG_SCHEMES):
+            continue
+        try:
+            cfg = parse_config(line)
+            result = await diagnose_config(cfg)
+            configs.append(result)
+        except Exception as exc:
+            configs.append({"status": "failed", "error": str(exc)[:160], "config": {"protocol": "Unknown", "host": "-"}})
+        if len(configs) >= 8:
+            break
+
+    if not configs:
+        raise ValueError("No supported VLESS, VMess, Trojan, Shadowsocks, or Hysteria2 configuration was detected.")
+
+    services_task = asyncio.create_task(probe_services())
+    iran_task = asyncio.create_task(_iran_service_matrix())
+    vps_task = asyncio.create_task(asyncio.to_thread(measure_network_quality))
+    services, iran, vps = await asyncio.gather(services_task, iran_task, vps_task)
+    text = _smart_config_text(configs, services, iran, premium)
+    text += (
+        f"\n\n{ui_emoji('⏲', premium)} <b>VPS Network</b>\n"
+        f"Download: <b>{vps.get('download_mbps', 'N/A')} Mbps</b>\n"
+        f"Upload: <b>{vps.get('upload_mbps', 'N/A')} Mbps</b>\n"
+        f"{ui_emoji('⏱', premium)} Latency: <b>{vps.get('latency_ms', 'N/A')} ms</b> · Jitter: <b>{vps.get('jitter_ms', 'N/A')} ms</b>"
+    )
+    return text[:3900]
 
 
 # Target entry state is intentionally in-memory. It is only a short-lived
@@ -548,7 +648,7 @@ def format_help(premium: bool) -> str:
         f"<b>{ui_emoji('❗️', premium)} idontScanner Help</b>",
         "━━━━━━━━━━━━━━━━━━━━",
         "<b>Available tools</b>",
-        "⚡️ Domain Scanner — scan the configured 100 domains.",
+        "⚡️ Domain Scanner — scan the configured 150 domains.",
         "🌐 Check Host — global or Iran multi-node diagnostics.",
         "📶 Smart Connection — Download, Upload, Latency and Jitter.",
         "⏲ VPS Speed — bounded VPS network-quality test.",
@@ -930,7 +1030,7 @@ async def handle_callback(token: str, callback: dict):
         return
 
     if action == "scan":
-        await edit_message_async(token, chat_id, message_id, f"{ui_emoji('⚡️', premium)} <b>Scanning 100 domains...</b>", _back_keyboard(premium))
+        await edit_message_async(token, chat_id, message_id, f"{ui_emoji('⚡️', premium)} <b>Scanning 150 domains + six Iran nodes...</b>", _back_keyboard(premium))
         scan = await run_scan()
         await edit_message_async(token, chat_id, message_id, f"{ui_emoji('🏆', premium)} <b>Scan complete — chart generated.</b>", _back_keyboard(premium))
         await send_scan_result_async(token, chat_id, scan, premium, False, _back_keyboard(premium))
@@ -954,13 +1054,11 @@ async def handle_callback(token: str, callback: dict):
         return
 
     if action == "smart":
-        await edit_message_async(token, chat_id, message_id, f"{ui_emoji('📶', premium)} <b>Measuring connection quality...</b>", _back_keyboard(premium))
-        try:
-            result = await asyncio.to_thread(measure_network_quality)
-            text = format_network_quality(result, premium)
-        except Exception as exc:
-            text = f"{ui_emoji('🔴', premium)} <b>Connection test failed</b>\n\n<code>{html.escape(str(exc)[:180])}</code>"
-        await edit_message_async(token, chat_id, message_id, text, _back_keyboard(premium))
+        await edit_message_async(
+            token, chat_id, message_id,
+            f"{ui_emoji('📶', premium)} <b>Smart Testing</b>\n\nSend one or more supported configs (VLESS / VMess / Trojan / Shadowsocks / Hysteria2).\n\nThe bot will test the endpoint, Instagram, Telegram, YouTube and the six Iran nodes.",
+            _back_keyboard(premium),
+        )
         return
 
     if action == "speed":
@@ -1078,6 +1176,15 @@ async def handle_text_message(token: str, message: dict):
             await security_alert(token, "Password changed", chat_id)
             return
 
+    if text and any(text.lower().startswith(prefix) for prefix in SMART_CONFIG_SCHEMES):
+        try:
+            await telegram_send_async(f"{ui_emoji('📶', is_premium_user(user))} <b>Smart Testing...</b>\n\nDetecting protocols and measuring services + Iran nodes.", _back_keyboard(is_premium_user(user)), chat_id)
+            result_text = await run_smart_testing(text, is_premium_user(user))
+            await telegram_send_async(result_text, _back_keyboard(is_premium_user(user)), chat_id)
+        except Exception as exc:
+            await telegram_send_async(f"{ui_emoji('🔴', is_premium_user(user))} <b>Smart Testing failed</b>\n\n<code>{html.escape(str(exc)[:220])}</code>", _back_keyboard(is_premium_user(user)), chat_id)
+        return
+
     pending = _PENDING_CHECKS.pop(chat_id, None)
     if pending and text and not text.startswith("/"):
         try:
@@ -1104,6 +1211,12 @@ async def handle_text_message(token: str, message: dict):
         await send_scan_result_async(token, chat_id, scan, is_premium_user(user), False, _back_keyboard(is_premium_user(user)))
     elif text == "/status":
         await telegram_send_async(format_status(is_premium_user(user)), _back_keyboard(is_premium_user(user)), chat_id)
+    elif text == "/smart":
+        await telegram_send_async(
+            f"{ui_emoji('📶', is_premium_user(user))} <b>Smart Testing</b>\n\nSend one or more supported configs. The bot will automatically test the endpoint, Instagram, Telegram, YouTube, six Iran nodes and VPS network quality.",
+            _back_keyboard(is_premium_user(user)),
+            chat_id,
+        )
     elif text.startswith("/checkhost "):
         target = text.split(" ", 1)[1].strip()
         try:

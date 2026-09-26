@@ -150,12 +150,28 @@ def init_db():
             "cert_issuer": "ALTER TABLE results ADD COLUMN cert_issuer TEXT",
             "cert_expires": "ALTER TABLE results ADD COLUMN cert_expires TEXT",
             "cert_san": "ALTER TABLE results ADD COLUMN cert_san TEXT",
+            "iran_avg_ms": "ALTER TABLE results ADD COLUMN iran_avg_ms REAL",
+            "iran_online_nodes": "ALTER TABLE results ADD COLUMN iran_online_nodes INTEGER",
+            "quality_score": "ALTER TABLE results ADD COLUMN quality_score REAL",
+            "rank": "ALTER TABLE results ADD COLUMN rank INTEGER",
         }
         for name, statement in result_migrations.items():
             if name not in result_columns:
                 con.execute(statement)
 
         now = int(time.time())
+        # v4.5 refreshes the built-in 150-domain catalog while preserving
+        # user-added custom domains. The migration is idempotent.
+        catalog_generation = con.execute(
+            "SELECT value FROM settings WHERE key='domain_catalog_generation'"
+        ).fetchone()
+        if not catalog_generation or catalog_generation[0] != '4.5.0':
+            con.execute("DELETE FROM domains WHERE is_default = 1")
+            con.execute(
+                "INSERT INTO settings(key, value) VALUES('domain_catalog_generation','4.5.0') "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value"
+            )
+
         domain_rows = [
             (label, domain, category, 1, 1, now)
             for label, domain, category in DEFAULT_DOMAINS

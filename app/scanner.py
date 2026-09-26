@@ -10,6 +10,7 @@ import ipaddress
 import re
 import shutil
 import subprocess
+import statistics
 
 from app.config import DEFAULT_PORT, MAX_SCAN_TARGETS, SCAN_CONCURRENCY, TIMEOUT
 from app.database import db
@@ -434,6 +435,61 @@ async def tls_probe(domain: str, connect_target: str | None = None):
     return await asyncio.to_thread(_tls_probe_sync, domain, connect_target)
 
 
+async def _iran_ping_quality(domain: str) -> dict:
+    """Measure the target from the six configured Iran Check-Host nodes."""
+    from app.check_host import IRAN_NODES, fetch_result, normalize_results, start_check
+
+    try:
+        started = await start_check("ping", f"{domain}:443", nodes=list(IRAN_NODES))
+        raw = {}
+        normalized = {"results": [], "complete": False}
+        deadline = time.perf_counter() + 5.0
+        while time.perf_counter() < deadline:
+            raw = await fetch_result(started["request_id"])
+            normalized = normalize_results("ping", raw, started.get("nodes", {}))
+            if normalized.get("complete"):
+                break
+            await asyncio.sleep(0.35)
+        rows = normalized.get("results", [])
+        values = [r.get("avg_ms") for r in rows if r.get("status") == "online" and r.get("avg_ms") is not None]
+        online = len(values)
+        average = statistics.mean(values) if values else None
+        return {
+            "average_ms": round(average, 1) if average is not None else None,
+            "online_nodes": online,
+            "total_nodes": len(IRAN_NODES),
+        }
+    except Exception:
+        return {"average_ms": None, "online_nodes": 0, "total_nodes": 6}
+
+
+async def _enrich_iran_ranking(items: list[dict]) -> None:
+    """Add bounded six-node Iran measurements without changing the old scan path."""
+    sem = asyncio.Semaphore(10)
+
+    async def worker(item):
+        async with sem:
+            quality = await _iran_ping_quality(item["domain"])
+            item["iran_avg_ms"] = quality["average_ms"]
+            item["iran_online_nodes"] = quality["online_nodes"]
+            item["iran_total_nodes"] = quality["total_nodes"]
+
+    await asyncio.gather(*(worker(item) for item in items))
+
+
+def _final_target_quality(item: dict) -> float:
+    base = float(item.get("score") or 0.0)
+    iran_avg = item.get("iran_avg_ms")
+    iran_nodes = int(item.get("iran_online_nodes") or 0)
+    iran_total = max(1, int(item.get("iran_total_nodes") or 6))
+    if iran_avg is None:
+        return round(base * 0.90, 1)
+    iran_latency = max(0.0, min(1.0, 1.0 - float(iran_avg) / 250.0))
+    iran_reach = max(0.0, min(1.0, iran_nodes / iran_total))
+    iran_quality = (iran_latency * 0.70 + iran_reach * 0.30) * 100.0
+    return round(base * 0.65 + iran_quality * 0.35, 1)
+
+
 async def run_scan(connect_target: str | None = None):
     with db() as con:
         domains = con.execute(
@@ -442,9 +498,9 @@ async def run_scan(connect_target: str | None = None):
             FROM domains
             WHERE enabled = 1
             ORDER BY id
-            LIMIT 100
+            LIMIT ?
             """
-        ).fetchall()
+        , (MAX_SCAN_TARGETS,)).fetchall()
 
     started = int(time.time())
     start_perf = time.perf_counter()
@@ -574,9 +630,32 @@ async def run_scan(connect_target: str | None = None):
         item["host_ok"] = bool(item.get("tcp_ms") is not None and healthy)
         item["sni_ok"] = bool(item.get("tls_version") and healthy)
         item["score"] = round((healthy*.25 + latency_score*.35 + tls_score*.25 + alpn_score*.15) * 100, 1)
+        item["iran_avg_ms"] = None
+        item["iran_online_nodes"] = 0
+        item["iran_total_nodes"] = 6
+        item["quality_score"] = item["score"]
+        item["rank"] = None
         chart_results.append(item.copy())
         results.append(item)
-    results.sort(key=lambda item: (item.get("status") != "ok", -item.get("score", 0), item.get("latency_ms") if item.get("latency_ms") is not None else 999999))
+    # v4.5 ranking: keep the proven local TLS scan, then add a bounded six-node
+    # Iran reachability measurement. This enriches every enabled domain without
+    # changing the existing probe semantics.
+    await _enrich_iran_ranking(results)
+    for item in results:
+        item["quality_score"] = _final_target_quality(item)
+
+    results.sort(key=lambda item: (item.get("status") != "ok", -item.get("quality_score", 0), item.get("iran_avg_ms") if item.get("iran_avg_ms") is not None else 999999, item.get("latency_ms") if item.get("latency_ms") is not None else 999999))
+    for rank, item in enumerate(results, start=1):
+        item["rank"] = rank
+
+    # Persist the ranking fields onto the result rows created above.
+    with db() as con:
+        for item in results:
+            con.execute(
+                """UPDATE results SET iran_avg_ms=?, iran_online_nodes=?, quality_score=?, rank=?
+                   WHERE scan_id=? AND domain_id=(SELECT id FROM domains WHERE domain=?)""",
+                (item.get("iran_avg_ms"), item.get("iran_online_nodes"), item.get("quality_score"), item.get("rank"), scan_id, item.get("domain")),
+            )
 
     score = 0
     if pairs:
