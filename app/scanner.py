@@ -464,17 +464,31 @@ async def _iran_ping_quality(domain: str) -> dict:
 
 
 async def _enrich_iran_ranking(items: list[dict]) -> None:
-    """Add bounded six-node Iran measurements without changing the old scan path."""
-    sem = asyncio.Semaphore(10)
+    """Add six-node Iran measurements with a hard per-domain deadline.
+
+    This is intentionally concurrent: the Domain Scanner must not wait through
+    a long serial queue of remote Check-Host requests. A missing/slow probe is
+    simply left as an unavailable measurement and never blocks the whole scan.
+    """
+    sem = asyncio.Semaphore(50)
 
     async def worker(item):
         async with sem:
-            quality = await _iran_ping_quality(item["domain"])
+            try:
+                quality = await asyncio.wait_for(_iran_ping_quality(item["domain"]), timeout=3.0)
+            except (asyncio.TimeoutError, Exception):
+                quality = {"average_ms": None, "online_nodes": 0, "total_nodes": 6}
             item["iran_avg_ms"] = quality["average_ms"]
             item["iran_online_nodes"] = quality["online_nodes"]
             item["iran_total_nodes"] = quality["total_nodes"]
 
-    await asyncio.gather(*(worker(item) for item in items))
+    # Hard upper bound for the remote enrichment phase.
+    # Slow/unreachable Check-Host nodes must never hold the whole domain scan.
+    try:
+        await asyncio.wait_for(asyncio.gather(*(worker(item) for item in items)), timeout=7.0)
+    except asyncio.TimeoutError:
+        # Keep completed measurements; unfinished targets remain unavailable.
+        return
 
 
 def _final_target_quality(item: dict) -> float:
@@ -504,20 +518,32 @@ async def run_scan(connect_target: str | None = None):
 
     started = int(time.time())
     start_perf = time.perf_counter()
-    semaphore = asyncio.Semaphore(8)
+    # Keep the complete 150-domain scan bounded. Remote/Iran enrichment runs
+    # concurrently below, so the slowest phase determines the total runtime.
+    semaphore = asyncio.Semaphore(32)
 
     async def scan_domain(domain):
         async with semaphore:
             # Domain Scanner behavior is intentionally unchanged.
             # Custom IP is an independent raw target and must never replace
-            # the resolved endpoint of any domain in the 65-target scan.
-            result = await tls_probe(domain["domain"])
+            # the resolved endpoint of any domain in the 150-target scan.
+            try:
+                result = await asyncio.wait_for(tls_probe(domain["domain"]), timeout=2.5)
+            except asyncio.TimeoutError:
+                result = {"status": "timeout", "latency_ms": None, "error": "Scan deadline exceeded"}
             return domain, result
 
-    pairs = await asyncio.gather(
-        *(scan_domain(domain) for domain in domains)
-    )
-    duration = (time.perf_counter() - start_perf) * 1000
+    # Run local TLS probes and the six-node Iran measurements at the same time.
+    # The previous implementation ran these phases serially, which could make
+    # a 150-domain scan wait close to a minute on slow Check-Host responses.
+    pairs_task = asyncio.gather(*(scan_domain(domain) for domain in domains))
+
+    placeholder_items = [
+        {"domain": domain["domain"], "label": domain["label"], "category": domain["category"]}
+        for domain in domains
+    ]
+    iran_task = asyncio.create_task(_enrich_iran_ranking(placeholder_items))
+    pairs, _ = await asyncio.gather(pairs_task, iran_task)
 
     ok_count = sum(
         1
@@ -637,12 +663,16 @@ async def run_scan(connect_target: str | None = None):
         item["rank"] = None
         chart_results.append(item.copy())
         results.append(item)
-    # v4.5 ranking: keep the proven local TLS scan, then add a bounded six-node
-    # Iran reachability measurement. This enriches every enabled domain without
-    # changing the existing probe semantics.
-    await _enrich_iran_ranking(results)
+    # v4.5 ranking: merge the already-running six-node Iran measurements.
+    iran_by_domain = {item["domain"]: item for item in placeholder_items}
     for item in results:
+        iran = iran_by_domain.get(item["domain"], {})
+        item["iran_avg_ms"] = iran.get("iran_avg_ms")
+        item["iran_online_nodes"] = iran.get("iran_online_nodes", 0)
+        item["iran_total_nodes"] = iran.get("iran_total_nodes", 6)
         item["quality_score"] = _final_target_quality(item)
+
+    duration = (time.perf_counter() - start_perf) * 1000
 
     results.sort(key=lambda item: (item.get("status") != "ok", -item.get("quality_score", 0), item.get("iran_avg_ms") if item.get("iran_avg_ms") is not None else 999999, item.get("latency_ms") if item.get("latency_ms") is not None else 999999))
     for rank, item in enumerate(results, start=1):
