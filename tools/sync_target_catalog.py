@@ -19,13 +19,14 @@ import subprocess
 import tempfile
 import urllib.request
 import zipfile
+import random
 from pathlib import Path
 
 COUNT_DEFAULT = 3000
 CORE_COUNT = 2000
 ROTATION_COUNT = 1000
-ROTATION_POOL_END = 12000
-USER_AGENT = "idontScanner-target-catalog/4.4.0"
+ROTATION_POOL_END = 20000
+USER_AGENT = "idontScanner-target-catalog/4.5.0"
 
 SOURCES = [
     # Prefer the official ranking, then GitHub mirrors/cache endpoints that
@@ -163,25 +164,23 @@ def parse(blob: bytes, parser: str, count: int) -> list[str]:
     return parse_lines(blob, count)
 
 
-def build_rotated_catalog(pool: list[str], count: int) -> list[str]:
-    """Build a fresh 3,000-target catalog with a deliberate 1,000-target rotation.
+def build_rotated_catalog(pool: list[str], count: int = COUNT_DEFAULT) -> list[str]:
+    """Build a fresh release-specific candidate set from a larger ranking pool.
 
-    The first 2,000 entries preserve the strongest/popular portion of the
-    ranking. The remaining 1,000 are selected from the next 9,000 candidates
-    at a deterministic spread, so an update does not keep returning the exact
-    same top-3,000 set forever. Runtime benchmarking still measures latency,
-    TLS, ALPN and certificate/SAN quality before presenting targets.
+    The catalog is intentionally a candidate pool: the runtime benchmark is
+    responsible for measuring real latency/TLS/ALPN quality before a target is
+    surfaced as a strong result. A release-specific deterministic shuffle makes
+    the 3,000-target set materially different between releases while remaining
+    reproducible during installation/update.
     """
-    if count < 3000:
-        return pool[:count]
-    core = pool[:CORE_COUNT]
-    rotation_pool = pool[CORE_COUNT:ROTATION_POOL_END]
-    if len(rotation_pool) < ROTATION_COUNT:
-        return pool[:count]
+    if count >= len(pool):
+        return _unique(pool, count)
 
-    step = len(rotation_pool) / ROTATION_COUNT
-    rotated = [rotation_pool[min(len(rotation_pool) - 1, int(i * step))] for i in range(ROTATION_COUNT)]
-    return _unique(core + rotated, count)
+    seed = sum(ord(ch) * (idx + 1) for idx, ch in enumerate(USER_AGENT))
+    candidates = list(pool[:ROTATION_POOL_END])
+    rng = random.Random(seed)
+    rng.shuffle(candidates)
+    return _unique(candidates, count)
 
 
 def atomic_write(path: Path, domains: list[str], source: str, transport: str) -> None:
