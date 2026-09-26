@@ -1,4 +1,11 @@
-# v4.5.0 — Smart Quality & Telegram Testing
+# v4.5.1 — Domain Scan Performance Patch
+
+- Bounded six-node Iran enrichment so slow remote probes cannot stall the full Domain Scan.
+- Kept the 150-target scan parallel and preserved the existing ranking/quality logic.
+- Tightened timeout handling for predictable scan completion.
+- Preserved the existing UI, SVG/custom-emoji system and Telegram chart.
+
+# v4.5.1 — Smart Quality & Telegram Testing
 
 - Replaced the built-in 150-domain catalog with a fresh, quality-focused candidate set.
 - Domain scans now run across 150 targets and rank the same UI rows after the scan.
