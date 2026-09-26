@@ -57,6 +57,9 @@ function renderDetails(data) {
         ["Ping Max", data.ping_max_ms != null ? `${data.ping_max_ms} ms` : null],
         ["Jitter", data.jitter_ms != null ? `${data.jitter_ms} ms` : null],
         ["Packet Loss", data.packet_loss != null ? `${data.packet_loss}%` : null],
+        ["Rank", data.rank != null ? `#${data.rank} / 150` : null],
+        ["Quality", data.quality_score != null ? `${data.quality_score}/100` : null],
+        ["Iran Nodes", data.iran_avg_ms != null ? `${data.iran_avg_ms} ms · ${data.iran_online_nodes ?? 0}/6` : null],
         ["Reachability", data.reachability === "tcp_fallback" ? "TCP fallback" : data.reachability === "icmp" ? "ICMP" : null],
         ["TCP Fallback", data.tcp_fallback_ms != null ? `${data.tcp_fallback_ms} ms · port ${data.fallback_port || 443}` : null],
         ["TLS Version", data.tls_version],
@@ -122,8 +125,8 @@ document.querySelector("#scanBtn")?.addEventListener("click", async (event) => {
     }
 
     state.textContent = customEnabled
-        ? "Scanning 100 domains normally and checking the custom IP separately…"
-        : "Scanning 100 real TLS targets…";
+        ? "Scanning 150 domains and checking the custom IP separately…"
+        : "Scanning 150 real TLS targets + six Iran nodes…";
 
     document.querySelectorAll(".result-row").forEach((row) => {
         row.querySelector(".status").className = "status testing";
@@ -138,14 +141,23 @@ document.querySelector("#scanBtn")?.addEventListener("click", async (event) => {
             connect_target: customEnabled ? customTarget : "",
         });
 
+        const resultRows = [];
         data.results.forEach((result) => {
             const row = [...document.querySelectorAll(".result-row[data-domain]")]
                 .find((item) => item.dataset.domain === result.domain);
 
             if (row) {
                 setResultRow(row, result);
+                resultRows.push({ row, result });
             }
         });
+
+        // Keep the existing UI, but reorder the same rows by the post-scan
+        // quality rank. No extra cards or controls are introduced.
+        const resultsContainer = document.querySelector("#results");
+        resultRows
+            .sort((a, b) => (a.result.rank ?? 9999) - (b.result.rank ?? 9999))
+            .forEach(({ row }) => resultsContainer?.appendChild(row));
 
         const customRow = document.querySelector("#customIpResultRow");
         if (customRow) {
