@@ -1236,7 +1236,16 @@ async def scan(request: Request):
                 {"error": "Custom ping target must be a valid IP address."},
                 status_code=400,
             )
-    return await run_scan(connect_target)
+    # Domain scans must never leave the browser in an indefinite TESTING state.
+    # Keep a small safety margin over the scanner's internal deadlines so slow
+    # remote diagnostics cannot hold the HTTP request open indefinitely.
+    try:
+        return await asyncio.wait_for(run_scan(connect_target), timeout=14.5)
+    except asyncio.TimeoutError:
+        return JSONResponse(
+            {"error": "Domain scan timed out. Partial results were discarded; please retry."},
+            status_code=504,
+        )
 
 
 def _measure_speed_test():

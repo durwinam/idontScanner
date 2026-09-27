@@ -545,6 +545,10 @@ async def run_scan(connect_target: str | None = None):
     iran_task = asyncio.create_task(_enrich_iran_ranking(placeholder_items))
     pairs, _ = await asyncio.gather(pairs_task, iran_task)
 
+    # Freeze the elapsed time before any database writes so the scan duration
+    # is always defined, even if persistence or ranking takes additional time.
+    duration = (time.perf_counter() - start_perf) * 1000
+
     ok_count = sum(
         1
         for _, result in pairs
@@ -672,6 +676,7 @@ async def run_scan(connect_target: str | None = None):
         item["iran_total_nodes"] = iran.get("iran_total_nodes", 6)
         item["quality_score"] = _final_target_quality(item)
 
+    # Refresh the final duration after ranking/persistence for the response.
     duration = (time.perf_counter() - start_perf) * 1000
 
     results.sort(key=lambda item: (item.get("status") != "ok", -item.get("quality_score", 0), item.get("iran_avg_ms") if item.get("iran_avg_ms") is not None else 999999, item.get("latency_ms") if item.get("latency_ms") is not None else 999999))
