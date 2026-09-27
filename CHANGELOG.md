@@ -1,3 +1,9 @@
+# v4.5.2 — Domain Scan Completion Fix
+
+- Fixed Domain Scan completion path and undefined duration state.
+- Added a hard 14.5-second API safety timeout so the scanner cannot remain in `TESTING` indefinitely.
+- Preserved the existing scan, ranking, six-node Iran diagnostics, UI, SVG and chart logic.
+
 # v4.5.1 — Domain Scan Performance Patch
 
 - Bounded six-node Iran enrichment so slow remote probes cannot stall the full Domain Scan.
